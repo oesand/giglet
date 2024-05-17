@@ -1,5 +1,7 @@
 package giglet
 
+import "giglet/safe"
+
 type HttpResponse struct {
-	nocopy noCopy
+	nocopy safe.NoCopy
 }

@@ -1,6 +1,8 @@
 package giglet
 
 import (
+	"bufio"
+	"io"
 	"log"
 	"net"
 	"sync"
@@ -51,36 +53,47 @@ func (server *Server) accept(lst net.Listener) (net.Conn, error) {
 	}
 }
 
-func (server *Server) Serve(listener net.Listener) error {
-	// for {
-	// 	conn, err := server.accept(listener)
-
-	// 	if err != nil {
-	// 		if err == io.EOF {
-	// 			return nil
-	// 		}
-	// 		return err
-	// 	}
-
-	// 	go server.work(conn)
-	// }
-
-	return nil
+func (server *Server) ListenAndServe(addr string) error {
+	lst, err := net.Listen("tcp4", addr)
+	if err != nil {
+		return err
+	}
+	return server.Serve(lst)
 }
 
-// func (server *Server) work(conn net.Conn) {
-// 	var request *HttpRequest
-// 	for {
+func (server *Server) Serve(listener net.Listener) error {
+	for {
+		conn, err := server.accept(listener)
 
-// 		reader := bufio.NewReaderSize(conn, server.ReadBufferSize)
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+			return err
+		}
 
-// 		buffer, _ := reader.Peek(1)
-// 		if len(buffer) == 0 {
-// 			conn.Close()
-// 		}
+		go server.work(conn)
+	}
+}
+
+func (server *Server) work(conn net.Conn) {
+	reader := bufio.NewReaderSize(conn, server.ReadBufferSize)
+	
+	// request := HttpRequest{
+	// 	conn: conn,
+	// }
+	
+	for {
+
+		reader.ReadLine()
+
+		buffer, _ := reader.Peek(1)
+		if len(buffer) == 0 {
+			conn.Close()
+		}
 
 		
 
 		
-// 	}
-// }
+	}
+}

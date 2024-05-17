@@ -1,0 +1,82 @@
+package specs
+
+import (
+	"bytes"
+	"encoding/binary"
+	"time"
+)
+
+type CookieSameSite string
+
+const (
+	CookieSameSiteLaxMode		CookieSameSite = "Lax"
+	CookieSameSiteStrictMode	CookieSameSite = "Strict"
+	CookieSameSiteNoneMode		CookieSameSite = "None"
+)
+
+type Cookie struct {
+	Name    	string
+	Value  		string
+
+	Domain 		string
+	MaxAge 		uint64
+	Expires 	time.Time
+	Path   		string
+
+	HttpOnly 	bool
+	Secure   	bool
+	SameSite 	CookieSameSite
+}
+
+func (cookie *Cookie) Append(buffer []byte) []byte {
+	builder := bytes.NewBuffer(buffer)
+	
+	builder.WriteString(cookie.Name)
+	builder.WriteByte('=')
+	builder.WriteString(cookie.Value)
+
+	if cookie.MaxAge > 0 {
+		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieKeyMaxAge)
+		builder.WriteByte('=')
+		builder.Write(binary.BigEndian.AppendUint64(nil, cookie.MaxAge))
+	} else if !cookie.Expires.IsZero() {
+		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieKeyExpires)
+		builder.WriteByte('=')
+		builder.Write(cookie.Expires.UTC().AppendFormat(nil, TimeFormat))
+	}
+
+	if len(cookie.Domain) > 0 {
+		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieKeyDomain)
+		builder.WriteByte('=')
+		builder.WriteString(cookie.Domain)
+	}
+
+	if len(cookie.Path) > 0 {
+		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieKeyPath)
+		builder.WriteByte('=')
+		builder.WriteString(cookie.Path)
+	}
+
+	if cookie.HttpOnly {
+		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieKeyHTTPOnly)
+	}
+
+	if cookie.Secure {
+		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieKeySecure)
+	}
+
+	if len(cookie.SameSite) > 0 {
+		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieKeySameSite)
+		builder.WriteByte('=')
+		builder.WriteString(string(cookie.SameSite))
+	}
+
+	return builder.Bytes()
+}
