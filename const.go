@@ -9,5 +9,11 @@ const (
 )
 
 var (
-	errorTooLarge = errors.New("too large")
+	ErrorTooLarge = errors.New("too large")
+	ErrorServerClosed = errors.New("http server closed")
+
+	httpVersionPrefix = []byte("HTTP/")
+	httpV10 = []byte("HTTP/1.0")
+	httpV11 = []byte("HTTP/1.1")
+	httpV2 = []byte("HTTP/2.0")
 )

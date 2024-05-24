@@ -1,35 +1,29 @@
 package giglet
 
 import (
-	"bufio"
 	"giglet/safe"
+	"giglet/specs"
+	"giglet/url"
 	"net"
 )
 
 type HttpRequest struct {
-	nocopy safe.NoCopy
+	_ safe.NoCopy
 
+	server *Server
 	conn net.Conn
-	reader bufio.Reader
 
-	
+	method specs.HttpMethod
+	url *url.Url
+
+	protoMajor uint16
+	protoMinor uint16
 }
 
-func (req *HttpRequest) readLine() ([]byte, error) {
-	var line []byte
-	for {
-		l, more, err := req.reader.ReadLine()
-		if err != nil {
-			return nil, err
-		} else if len(line) + len(l) > defaultLineLengthLimit {
-			return nil, errorTooLarge
-		} else if line == nil && !more {
-			return l, nil
-		}
-		line = append(line, l...)
-		if !more {
-			break
-		}
-	}
-	return line, nil
+func (req *HttpRequest) Method() specs.HttpMethod {
+	return req.method
+}
+
+func (req *HttpRequest) Url() *url.Url {
+	return req.url
 }

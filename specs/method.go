@@ -13,7 +13,7 @@ const (
 	HttpMethodTrace   HttpMethod = "TRACE"
 )
 
-func IsValidHttpMethod(method HttpMethod) bool {
+func (method HttpMethod) IsValid() bool {
 	return method == HttpMethodGet ||
 		method == HttpMethodPost ||
 		method == HttpMethodPut ||
@@ -24,7 +24,7 @@ func IsValidHttpMethod(method HttpMethod) bool {
 		method == HttpMethodTrace
 }
 
-func IsPostableHttpMethod(method HttpMethod) bool {
+func (method HttpMethod) IsPostable() bool {
 	return method == HttpMethodPost ||
 		method == HttpMethodPut ||
 		method == HttpMethodDelete ||

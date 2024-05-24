@@ -40,6 +40,6 @@ const (
 	ContentTypeMultipart ContentType = "multipart/form-data"
 )
 
-func IsFormContentType(contentType ContentType) bool {
+func (contentType ContentType) IsForm() bool {
 	return contentType == ContentTypeForm || contentType == ContentTypeMultipart
 }
