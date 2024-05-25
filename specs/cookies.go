@@ -36,43 +36,43 @@ func (cookie *Cookie) Append(buffer []byte) []byte {
 	builder.WriteString(cookie.Value)
 
 	if cookie.MaxAge > 0 {
-		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieDelimiter)
 		builder.Write(cookieKeyMaxAge)
 		builder.WriteByte('=')
 		builder.Write(binary.BigEndian.AppendUint64(nil, cookie.MaxAge))
 	} else if !cookie.Expires.IsZero() {
-		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieDelimiter)
 		builder.Write(cookieKeyExpires)
 		builder.WriteByte('=')
 		builder.Write(cookie.Expires.UTC().AppendFormat(nil, TimeFormat))
 	}
 
 	if len(cookie.Domain) > 0 {
-		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieDelimiter)
 		builder.Write(cookieKeyDomain)
 		builder.WriteByte('=')
 		builder.WriteString(cookie.Domain)
 	}
 
 	if len(cookie.Path) > 0 {
-		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieDelimiter)
 		builder.Write(cookieKeyPath)
 		builder.WriteByte('=')
 		builder.WriteString(cookie.Path)
 	}
 
 	if cookie.HttpOnly {
-		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieDelimiter)
 		builder.Write(cookieKeyHTTPOnly)
 	}
 
 	if cookie.Secure {
-		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieDelimiter)
 		builder.Write(cookieKeySecure)
 	}
 
 	if len(cookie.SameSite) > 0 {
-		builder.Write(cookieParamDelimiter)
+		builder.Write(cookieDelimiter)
 		builder.Write(cookieKeySameSite)
 		builder.WriteByte('=')
 		builder.WriteString(string(cookie.SameSite))

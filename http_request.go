@@ -20,6 +20,14 @@ type HttpRequest struct {
 	protoMinor uint16
 }
 
+func (req *HttpRequest) Server() *Server {
+	return req.server
+}
+
+func (req *HttpRequest) Conn() net.Conn {
+	return req.conn
+}
+
 func (req *HttpRequest) Method() specs.HttpMethod {
 	return req.method
 }
@@ -27,3 +35,5 @@ func (req *HttpRequest) Method() specs.HttpMethod {
 func (req *HttpRequest) Url() *url.Url {
 	return req.url
 }
+
+

@@ -29,7 +29,7 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	} else if req.protoMajor, req.protoMinor, ok = parseHTTPVersion(proto); !ok {
 		return nil, errors.New("parse: invalid http version")
 	} else if req.url, err = urlpkg.ParseUrl(safe.BufferToString(url)); err != nil {
-		return nil, errors.Join(errors.New("parse -> url:"), err)
+		return nil, errors.New("parse -> url -> " + err.Error())
 	}
 
 	

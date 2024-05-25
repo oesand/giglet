@@ -1,51 +1,189 @@
 package url
 
+import (
+	"encoding/binary"
+	"errors"
+	"strconv"
+	"strings"
+)
+
+var invalidFormatError = errors.New("url: invalid format")
+
 func ParseUrl(url string) (*Url, error) {
-	return &Url{}, nil
+	obj := &Url{}
+	if len(url) > 0 {
+		var i, mark, step int
+		end := len(url) - 1
+		for i < end {
+			switch url[i] {
+			case '/':
+				if step != 5 {
+					if i != 0 {
+						switch step { // read as 'path'
+							default:
+								return nil, invalidFormatError
+	
+							case 0, 3: // from 'host'
+								if i - mark < 1 {
+									return nil, invalidFormatError
+								}
+								obj.Host = url[mark:i]
+			
+							case 4: // from 'port'
+								err := obj.setPort(url[mark:i])
+								if err != nil {
+									return nil, errors.New("url -> port: " + err.Error())
+								}
+						}
+					}
+
+					step = 5 // goto 'path'
+					mark = i
+				}
+			case ':':
+				if i < 1 { // ensure host:port format
+					return nil, invalidFormatError
+				} else if i+2 < end && 
+					url[i+1] == '/' && url[i+2] == '/' { // read as 'scheme'
+					
+					if step != 0 && i < 1 {
+						return nil, invalidFormatError
+					}
+					step = 3 // goto 'host'
+					obj.Scheme = url[:i]
+					i += 3; mark = i
+					continue
+				} else if step == 0 || step == 3 { // read as 'host'
+					if i - mark < 1 {
+						return nil, invalidFormatError
+					}
+					obj.Host = url[mark:i]
+					step = 4 // goto 'port'
+					i++; mark = i
+					continue
+				}
+			case '@':
+				if step == 4 { // from 'port', read as 'password'
+					if i - mark < 1 {
+						return nil, invalidFormatError
+					}
+					obj.Username = obj.Host
+					obj.Password = url[mark:i]
+					obj.Host = ""
+					step = 3 // goto 'host'
+					i++; mark = i
+					continue
+				} else {
+					return nil, invalidFormatError
+				}
+			case '?':
+				if step == 5 { // from 'path', read as 'query'
+					if i - mark < 1 {
+						return nil, invalidFormatError
+					}
+					obj.Path = url[mark:i]
+					step = 6 // goto 'query'
+					i++; mark = i
+					continue
+				} else {
+					return nil, invalidFormatError
+				}
+			case '#':
+				switch step { // read as 'hash'
+					default:
+						return nil, invalidFormatError
+
+					case 5: // from 'path'
+						obj.Path = url[mark:i]
+
+					case 6: // from 'query'
+						obj.Query = url[mark:i]
+				}
+				step = 7 // goto 'hash'
+				i++; mark = i
+				continue
+			}
+			i++
+		}
+		if end - mark < 0 {
+			return nil, invalidFormatError
+		}
+		switch step {
+			case 0, 3: // host
+				obj.Host = url[mark:]
+			
+			case 4: // port
+				err := obj.setPort(url[mark:])
+				if err != nil {
+					return nil, errors.New("url -> port: " + err.Error())
+				}
+
+			case 5: // path
+				obj.Path = url[mark:]
+
+			case 6: // query
+				obj.Query = url[mark:]
+
+			case 7: // hash
+				obj.Hash = url[mark:]
+
+			default:
+				return nil, invalidFormatError
+		}
+	}
+	return obj, nil
 }
 
 type Url struct {
-	scheme, username, password,
-	host, port, path, query, hash string
-
-	queryParams Query
+	Scheme, Username, Password, 
+	Host, Path, Query, Hash string
+	Port uint16
 }
 
-func (url *Url) Scheme() string {
-	return url.scheme
-}
-
-func (url *Url) Username() string {
-	return url.username
-}
-
-func (url *Url) Password() string {
-	return url.password
-}
-
-func (url *Url) Host() string {
-	return url.host
-}
-
-func (url *Url) Port() string {
-	return url.port
-}
-
-func (url *Url) Path() string {
-	return url.path
-}
-
-func (url *Url) Query() string {
-	return url.query
-}
-
-func (url *Url) QueryParams() Query {
-	if url.queryParams == nil {
-		url.queryParams = ParseQuery(url.query)
+func (url *Url) setPort(val string) error {
+	num, err := strconv.ParseUint(val, 10, 16)
+	if err != nil {
+		return err
 	}
-	return url.queryParams
+	url.Port = uint16(num)
+	return nil
 }
 
-func (url *Url) Hash() string {
-	return url.hash
+func (url *Url) String() string {
+	var builder strings.Builder
+
+	if len(url.Host) > 0 {
+		if len(url.Scheme) > 0 {
+			builder.WriteString(url.Scheme)
+			builder.WriteString("://")
+		}
+		if len(url.Username) > 0 && len(url.Password) > 0 {
+			builder.WriteString(url.Username)
+			builder.WriteByte(':')
+			builder.WriteString(url.Password)
+			builder.WriteByte('@')
+		}
+
+		builder.WriteString(url.Host)
+
+		if url.Port > 0 {
+			builder.WriteByte(':')
+			builder.Write(binary.BigEndian.AppendUint16(nil, url.Port))
+		}
+	}
+
+	if len(url.Path) > 0 {
+		builder.WriteString(url.Path)
+
+		if len(url.Query) > 0 {
+			builder.WriteByte('?')
+			builder.WriteString(url.Query)
+		}
+		if len(url.Hash) > 0 {
+			builder.WriteByte('#')
+			builder.WriteString(url.Hash)
+		}
+	}
+
+	return builder.String()
 }
