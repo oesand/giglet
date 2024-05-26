@@ -2,9 +2,12 @@ package specs
 
 import (
 	"encoding/binary"
+	"giglet/safe"
 )
 
 type StatusCode struct {
+	_ safe.NoCopy
+	
 	Code uint16
 	Detail []byte
 }

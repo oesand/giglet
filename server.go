@@ -1,6 +1,7 @@
 package giglet
 
 import (
+	"crypto/tls"
 	"log"
 	"net"
 	"sync"
@@ -30,7 +31,9 @@ type Server struct {
 	// zero, there is no timeout.
 	IdleTimeout time.Duration
 
+	TLSConfig *tls.Config
 
+	nextProtos map[string]NextProtoHandler
 	mutex sync.Mutex
 	isShuttingdown atomic.Bool
 	listenerTrack  sync.WaitGroup
@@ -50,6 +53,18 @@ func (server *Server) handshakeTimeout() time.Duration {
 		return server.WriteTimeout
 	}
 	return 0
+}
+
+func (s *Server) NextProto(key string, handler NextProtoHandler) {
+	if s.nextProtos == nil {
+		s.nextProtos = map[string]NextProtoHandler{}
+	}
+	if s.TLSConfig == nil {
+		s.TLSConfig = &tls.Config{}
+	}
+
+	s.TLSConfig.NextProtos = append(s.TLSConfig.NextProtos, key)
+	s.nextProtos[key] = handler
 }
 
 func (server *Server) ListenAndServe(addr string) error {

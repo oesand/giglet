@@ -19,4 +19,6 @@ var (
 	cookieKeySecure         = []byte("Secure")
 	cookieKeyMaxAge         = []byte("Max-Age")
 	cookieKeySameSite       = []byte("SameSite")
+
+	websocketAcceptBaseKey = []byte("258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
 )

@@ -11,6 +11,7 @@ const (
 	HttpMethodHead    HttpMethod = "HEAD"
 	HttpMethodPatch   HttpMethod = "PATCH"
 	HttpMethodTrace   HttpMethod = "TRACE"
+	HttpMethodConnect HttpMethod = "CONNECT"
 )
 
 func (method HttpMethod) IsValid() bool {

@@ -3,8 +3,10 @@ package giglet
 import (
 	"crypto/tls"
 	"net"
+	"runtime"
 	"time"
 )
+
 
 func (server *Server) Serve(listener net.Listener) error {
 	server.listenerTrack.Add(1)
@@ -26,60 +28,73 @@ func (server *Server) Serve(listener net.Listener) error {
 }
 
 func (server *Server) work(conn net.Conn) {
-
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		timeout := server.handshakeTimeout()
 		if timeout > 0 {
 			dl := time.Now().Add(timeout)
-			conn.SetReadDeadline(dl)
-			conn.SetWriteDeadline(dl)
+			conn.SetDeadline(dl)
 		}
 		if err := tlsConn.Handshake(); err != nil {
 			// If the handshake failed due to the client not speaking
 			// TLS, assume they're speaking plaintext HTTP and write a
 			// 400 response on the TLS conn's underlying net.Conn.
-			// [FIXME]!!!
-			// if re, ok := err.(tls.RecordHeaderError); ok && re.Conn != nil && tlsRecordHeaderLooksLikeHTTP(re.RecordHeader) {
-			// 	io.WriteString(re.Conn, "HTTP/1.0 400 Bad Request\r\n\r\nClient sent an HTTP request to an HTTPS server.\n")
-			// 	re.Conn.Close()
-			// 	return
-			// }
+			if re, ok := err.(tls.RecordHeaderError); ok && re.Conn != nil {
+				re.Conn.Write(responseDowngradeHTTPS)
+				re.Conn.Close()
+				return
+			}
 			server.logger().Printf("http: tls handshake error from %s: %v", conn.RemoteAddr(), err)
 			return
 		}
 		if timeout > 0 {
-			conn.SetReadDeadline(time.Time{})
-			conn.SetWriteDeadline(time.Time{})
+			conn.SetReadDeadline(zeroTime)
+			conn.SetWriteDeadline(zeroTime)
 		}
-		// c.tlsState = new(tls.ConnectionState)
-		// *c.tlsState = tlsConn.ConnectionState()
-		// if proto := c.tlsState.NegotiatedProtocol; validNextProto(proto) {
-		// 	if fn := c.server.TLSNextProto[proto]; fn != nil {
-		// 		h := initALPNRequest{ctx, tlsConn, serverHandler{c.server}}
-		// 		// Mark freshly created HTTP/2 as active and prevent any server state hooks
-		// 		// from being run on these connections. This prevents closeIdleConns from
-		// 		// closing such connections. See issue https://golang.org/issue/39776.
-		// 		c.setState(c.rwc, StateActive, skipHooks)
-		// 		fn(c.server, tlsConn, h)
-		// 	}
-		// 	return
-		// }
+
+		proto := tlsConn.ConnectionState().NegotiatedProtocol
+
+		if server.nextProtos != nil {
+			if handler, ok := server.nextProtos[proto]; ok {
+				handler(conn)
+				return
+			}
+		}
 	}
 
-	// reader := getBufloReader(conn)
+	defer func() { // [FIXME]: Add continue and hijack
+		if err := recover(); err != nil && err != ErrorAbortHandler {
+			const size = 64 << 10
+			buf := make([]byte, size)
+			buf = buf[:runtime.Stack(buf, false)]
+			server.logger().Printf("http: panic serving %v: %v\n%s", conn.RemoteAddr(), err, buf)
+		}
+	}()
 
-	// request := HttpRequest{
-	// 	conn: conn,
+	reader := getBufioReader(conn)
+
+	if server.ReadTimeout > 0 {
+		conn.SetReadDeadline(time.Now().Add(server.ReadTimeout))
+	}
+
+	req, err := readRequest(reader)
+
+	if err != nil {
+		switch {
+		case err == ErrorTooLarge:
+			conn.Write(responseRequestHeadersTooLarge)
+
+		case err == ErrorUnsupportedEncoding:
+			conn.Write(responseUnsupportedEncoding)
+		}
+		conn.Close()
+		readerPool.Put(reader)
+		return
+	}
+
+
+	// if server.WriteTimeout > 0 {
+	// 	conn.SetWriteDeadline(time.Now().Add(server.WriteTimeout))
 	// }
 
-	// for {
 
-	// 	reader.ReadLine()
-
-	// 	buffer, _ := reader.Peek(1)
-	// 	if len(buffer) == 0 {
-	// 		conn.Close()
-	// 	}
-
-	// }
 }

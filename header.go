@@ -4,7 +4,6 @@ import (
 	"giglet/safe"
 	"giglet/specs"
 	"io"
-	"strings"
 )
 
 type Header struct {
@@ -19,18 +18,24 @@ func (header *Header) Get(name string) string {
 	return header.headers[name]
 }
 
-func (header *Header) Set(name, value string) *Header {
-	name = strings.Title(name)
+func (header *Header) Set(name, value string) {
+	name = titleCaser.String(name)
 	if name == "Set-Cookie" {
 		panic("header not support direct set cookie, use method 'SetCookie'")
 	} else if header.headers == nil {
 		header.headers = map[string]string{}
 	}
 	header.headers[name] = value
-	return header
 }
 
-func (header *Header) SetCookie(cookie *specs.Cookie) *Header {
+func (header *Header) GetCookie(name string) *specs.Cookie {
+	if header.cookies == nil {
+		return nil
+	}
+	return header.cookies[name]
+}
+
+func (header *Header) SetCookie(cookie *specs.Cookie) {
 	if len(cookie.Name) == 0 {
 		panic("cookie name cannot be empty")
 	} else if header.cookies == nil {
@@ -38,15 +43,13 @@ func (header *Header) SetCookie(cookie *specs.Cookie) *Header {
 	}
 	
 	header.cookies[cookie.Name] = cookie
-	return header
 }
 
-func (header *Header) SetCookieValue(name, value string) *Header {
+func (header *Header) SetCookieValue(name, value string) {
 	header.SetCookie(&specs.Cookie{
 		Name: name,
 		Value: value,
 	})
-	return header
 }
 
 func (header *Header) Write(writer io.Writer) {
