@@ -1,6 +1,7 @@
 package giglet
 
 import (
+	"bufio"
 	"crypto/tls"
 	"net"
 	"runtime"
@@ -65,8 +66,8 @@ func (server *Server) work(conn net.Conn) {
 		}
 	}()
 
-	reader := getBufioReader(conn)
-
+	// Without sync.Pool, because (*Reader).Reset are same
+	reader := bufio.NewReader(conn)
 
 	// if server.WriteTimeout > 0 {
 	// 	conn.SetDeadline(time.Now().Add(server.WriteTimeout))
@@ -96,7 +97,6 @@ func (server *Server) work(conn net.Conn) {
 
 			}
 			conn.Close()
-			readerPool.Put(reader)
 			return
 		}
 	}

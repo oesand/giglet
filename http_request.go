@@ -3,7 +3,6 @@ package giglet
 import (
 	"giglet/safe"
 	"giglet/specs"
-	"giglet/url"
 	"io"
 	"net"
 )
@@ -16,8 +15,8 @@ type HttpRequest struct {
 	extras map[string]any
 
 	method specs.HttpMethod
-	url *url.Url
-	header *httpRequestHeader
+	url *specs.Url
+	header *specs.ReadOnlyHeader
 
 	protoMajor uint16
 	protoMinor uint16
@@ -46,11 +45,11 @@ func (req *HttpRequest) Method() specs.HttpMethod {
 	return req.method
 }
 
-func (req *HttpRequest) Url() *url.Url {
+func (req *HttpRequest) Url() *specs.Url {
 	return req.url
 }
 
-func (req *HttpRequest) Header() *httpRequestHeader {
+func (req *HttpRequest) Header() *specs.ReadOnlyHeader {
 	return req.header
 }
 

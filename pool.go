@@ -4,19 +4,7 @@ import (
 	"bufio"
 	"io"
 	"net"
-	"sync"
 )
-
-var readerPool  sync.Pool
-
-func getBufioReader(r io.Reader) *bufio.Reader {
-	if reader := readerPool.Get(); reader != nil {
-		br := reader.(*bufio.Reader)
-		br.Reset(r)
-		return br
-	}
-	return bufio.NewReader(r)
-}
 
 func readBufferLine(reader *bufio.Reader, limit uint64) ([]byte, error) {
 	var line []byte

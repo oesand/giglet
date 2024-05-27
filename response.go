@@ -12,7 +12,7 @@ type Response interface {
 	StatusCode() *specs.StatusCode
 	SetStatusCode(*specs.StatusCode)
 
-	Header() *Header
+	Header() *specs.Header
 }
 
 type PreparableResponse interface {
@@ -28,7 +28,7 @@ type WritableResponse interface {
 type HeaderResponse struct {
 	_ safe.NoCopy
 	statusCode *specs.StatusCode
-	header *Header
+	header *specs.Header
 }
 
 func (resp *HeaderResponse) StatusCode() *specs.StatusCode {
@@ -42,29 +42,42 @@ func (resp *HeaderResponse) SetStatusCode(code *specs.StatusCode) {
 	resp.statusCode = code
 }
 
-func (resp *HeaderResponse) Header() *Header {
+func (resp *HeaderResponse) Header() *specs.Header {
 	if resp.header == nil {
-		resp.header = &Header{}
+		resp.header = &specs.Header{}
 	}
 	return resp.header
 }
 
 
-type TextResponse struct {
+type OncePrepareResponse struct {
 	HeaderResponse
 	once atomic.Bool
+}
+
+func (resp *OncePrepareResponse) MarkOnce() bool {
+	val := resp.once.Load()
+	if !val {
+		resp.once.Store(true)
+	}
+	return val
+}
+
+
+type TextResponse struct {
+	OncePrepareResponse
 
 	Content string
 	ContentType specs.ContentType
 }
 
 func (resp *TextResponse) Prepare() {
-	if resp.once.Load() { return }
-	resp.once.Store(true)
+	if resp.MarkOnce() { return }
 
 	if resp.ContentType == specs.ContentTypeUndefined {
 		resp.ContentType = specs.ContentTypePlain
 	}
+	resp.Header().Set("Content-Length", strconv.Itoa(len(resp.ContentType)))
 	resp.Header().Set("Content-Type", string(resp.ContentType))
 }
 
@@ -74,8 +87,7 @@ func (resp *TextResponse) Write(writer io.Writer) {
 
 
 type StreamResponse struct {
-	HeaderResponse
-	once atomic.Bool
+	OncePrepareResponse
 
 	Stream io.Reader
 	Size int64
@@ -83,8 +95,7 @@ type StreamResponse struct {
 }
 
 func (resp *StreamResponse) Prepare() {
-	if resp.once.Load() { return }
-	resp.once.Store(true)
+	if resp.MarkOnce() { return }
 
 	if resp.ContentType == specs.ContentTypeUndefined {
 		resp.ContentType = specs.ContentTypeRaw

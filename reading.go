@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"giglet/safe"
 	"giglet/specs"
-	urlpkg "giglet/url"
 
 	"golang.org/x/net/http/httpguts"
 )
@@ -37,8 +36,8 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 			text: fmt.Sprintf("http: unsupported http version %d.%d", protoMajor, protoMinor),
 		}
 	}
-	var url *urlpkg.Url
-	if url, err = urlpkg.ParseUrl(safe.BufferToString(rawurl)); err != nil {
+	var url *specs.Url
+	if url, err = specs.ParseUrl(safe.BufferToString(rawurl)); err != nil {
 		return nil, &statusErrorResponse{
 			code: specs.StatusCodeMisdirectedRequest,
 			text: fmt.Sprintf("http: invalid request url \"%s\"", rawurl),
@@ -54,9 +53,7 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.header = &httpRequestHeader{
-		headers: header,
-	}
+	req.header = specs.NewReadOnlyHeader(header)
 
 	// RFC 7230, section 5.3: Must treat
 	//	GET /index.html HTTP/1.1
@@ -114,14 +111,18 @@ func parseHeader(reader *bufio.Reader) (map[string]string, error) {
 				if !ok || len(key) == 0 || len(value) == 0 {
 					continue
 				}
-				headers[safe.BufferToString(titleCaser.Bytes(key))] = safe.BufferToString(value)
+				skey, sval := safe.BufferToString(specs.TitleCaseBytes(key)), safe.BufferToString(line)
+				if httpguts.ValidHeaderFieldName(skey) && httpguts.ValidHeaderFieldValue(sval) {
+					headers[skey] = sval
+				}
+				headers[skey] = sval
 			}
 		} else {
 			line = bytes.TrimLeft(line, " \t")
 			if len(key) == 0 || len(line) == 0 {
 				continue
 			}
-			skey, sval := safe.BufferToString(titleCaser.Bytes(key)), safe.BufferToString(line)
+			skey, sval := safe.BufferToString(specs.TitleCaseBytes(key)), safe.BufferToString(line)
 			if httpguts.ValidHeaderFieldName(skey) && httpguts.ValidHeaderFieldValue(sval) {
 				headers[skey] = sval
 			}

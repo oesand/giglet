@@ -1,6 +1,9 @@
-package giglet
+package specs
 
-import "strings"
+import (
+	"giglet/safe"
+	"strings"
+)
 
 func parseCookies(cookie string) map[string]string {
 	var output map[string]string
@@ -16,18 +19,31 @@ func parseCookies(cookie string) map[string]string {
 	return output
 }
 
-type httpRequestHeader struct {
+func NewReadOnlyHeader(headers map[string]string) *ReadOnlyHeader {
+	return &ReadOnlyHeader{
+		headers: headers,
+	}
+}
+
+type ReadOnlyHeader struct {
+	_ safe.NoCopy
+
 	headers       map[string]string
 	cookies       map[string]string
 	cookiesParsed bool
 }
 
-func (header *httpRequestHeader) Get(name string) string {
+func (header *ReadOnlyHeader) Get(name string) string {
+	if header.headers == nil {
+		return ""
+	}
 	return header.headers[name]
 }
 
-func (header *httpRequestHeader) GetCookie(name string) string {
-	if !header.cookiesParsed {
+func (header *ReadOnlyHeader) GetCookie(name string) string {
+	if header.headers == nil {
+		return ""
+	} else if !header.cookiesParsed {
 		if cookie, exists := header.headers["Cookie"]; exists && len(cookie) > 0 {
 			header.cookies = parseCookies(cookie)
 		}

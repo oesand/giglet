@@ -1,4 +1,4 @@
-package url
+package specs
 
 func ParseQuery(query string) Query {
 	return Query{}

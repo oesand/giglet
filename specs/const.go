@@ -2,6 +2,9 @@ package specs
 
 import (
 	"mime/multipart"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type MultipartForm multipart.Form
@@ -21,4 +24,17 @@ var (
 	cookieKeySameSite       = []byte("SameSite")
 
 	websocketAcceptBaseKey = []byte("258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+
+	titleCaser 				= cases.Title(language.English)
+	directColonSpace        = []byte(": ")
+	directCrlf              = []byte("\r\n")
+	headerSetCookie			= []byte("Set-Cookie: ")
 )
+
+func TitleCase(content string) string {
+	return titleCaser.String(content)
+}
+
+func TitleCaseBytes(content []byte) []byte {
+	return titleCaser.Bytes(content)
+}

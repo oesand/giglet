@@ -7,9 +7,6 @@ import (
 	"io"
 	"net"
 	"time"
-
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 type RequestHandler func(request *HttpRequest) Response
@@ -27,7 +24,6 @@ var (
 	ErrorUnsupportedEncoding = errors.New("http: encoding not supported")
 	ErrorAbortHandler = errors.New("http: abort Handler")
 
-	titleCaser = cases.Title(language.English)
 	zeroTime time.Time
 	
 	httpVersionPrefix 	= []byte("HTTP/")
@@ -35,9 +31,7 @@ var (
 	httpV11 			= []byte("HTTP/1.1")
 	httpV2 				= []byte("HTTP/2.0")
 	
-	headerSetCookie			= []byte("Set-Cookie: ")
 	directCrlf              = []byte("\r\n")
-	directColonSpace        = []byte(": ")
 	directColon        		= []byte(":")
 
 	rawCloseHeaders = []byte("Content-Type: text/plain; charset=utf-8\r\nConnection: close\r\n")
