@@ -11,7 +11,6 @@ import (
 type HttpRequest struct {
 	_ safe.NoCopy
 
-	server *Server
 	conn net.Conn
 	hijacker HijackHandler
 	extras map[string]any

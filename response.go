@@ -5,6 +5,7 @@ import (
 	"giglet/specs"
 	"io"
 	"strconv"
+	"sync/atomic"
 )
 
 type Response interface {
@@ -51,11 +52,16 @@ func (resp *HeaderResponse) Header() *Header {
 
 type TextResponse struct {
 	HeaderResponse
+	once atomic.Bool
+
 	Content string
 	ContentType specs.ContentType
 }
 
 func (resp *TextResponse) Prepare() {
+	if resp.once.Load() { return }
+	resp.once.Store(true)
+
 	if resp.ContentType == specs.ContentTypeUndefined {
 		resp.ContentType = specs.ContentTypePlain
 	}
@@ -69,12 +75,17 @@ func (resp *TextResponse) Write(writer io.Writer) {
 
 type StreamResponse struct {
 	HeaderResponse
+	once atomic.Bool
+
 	Stream io.Reader
 	Size int64
 	ContentType specs.ContentType
 }
 
 func (resp *StreamResponse) Prepare() {
+	if resp.once.Load() { return }
+	resp.once.Store(true)
+
 	if resp.ContentType == specs.ContentTypeUndefined {
 		resp.ContentType = specs.ContentTypeRaw
 	}

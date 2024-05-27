@@ -46,13 +46,16 @@ func (server *Server) logger() *log.Logger {
 	return log.Default()
 }
 
-func (server *Server) handshakeTimeout() time.Duration {
+func (server *Server) applyReadTimeout(conn net.Conn) {
 	if server.ReadTimeout > 0 {
-		return server.ReadTimeout
-	} else if server.WriteTimeout > 0 {
-		return server.WriteTimeout
+		conn.SetReadDeadline(time.Now().Add(server.ReadTimeout))
 	}
-	return 0
+}
+
+func (server *Server) applyWriteTimeout(conn net.Conn) {
+	if server.WriteTimeout > 0 {
+		conn.SetWriteDeadline(time.Now().Add(server.WriteTimeout))
+	}
 }
 
 func (s *Server) NextProto(key string, handler NextProtoHandler) {

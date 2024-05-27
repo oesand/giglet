@@ -5,9 +5,12 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"giglet/safe"
 	"giglet/specs"
 	urlpkg "giglet/url"
+
+	"golang.org/x/net/http/httpguts"
 )
 
 func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
@@ -16,19 +19,37 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 		return nil, err
 	}
 
-	method, url, proto, ok := parseHeadline(line)
+	method, rawurl, proto, ok := parseHeadline(line)
 	if !ok {
-		return nil, errors.New("http: invalid headline")
+		return nil, &statusErrorResponse{ 
+			code: specs.StatusCodeRequestURITooLong,
+			text: "http: invalid headline",
+		}
+	}
+	
+	var protoMajor, protoMinor uint16
+	if protoMajor, protoMinor, ok = parseHTTPVersion(proto); !ok {
+		return nil, errors.New("http: invalid http version format")
+	} else if protoMajor != 1 && (
+		protoMajor != 2 || protoMinor != 0 || method != "PRI") {
+		return nil, &statusErrorResponse{
+			code: specs.StatusCodeNotImplemented,
+			text: fmt.Sprintf("http: unsupported http version %d.%d", protoMajor, protoMinor),
+		}
+	}
+	var url *urlpkg.Url
+	if url, err = urlpkg.ParseUrl(safe.BufferToString(rawurl)); err != nil {
+		return nil, &statusErrorResponse{
+			code: specs.StatusCodeMisdirectedRequest,
+			text: fmt.Sprintf("http: invalid request url \"%s\"", rawurl),
+		}
 	}
 
 	req := new(HttpRequest)
-	req.method = specs.HttpMethod(safe.BufferToString(method))
-	if req.protoMajor, req.protoMinor, ok = parseHTTPVersion(proto); !ok {
-		return nil, errors.New("http: invalid http version")
-	} else if req.url, err = urlpkg.ParseUrl(safe.BufferToString(url)); err != nil {
-		return nil, errors.New("parse -> url -> " + err.Error())
-	}
-
+	req.method = specs.HttpMethod(method)
+	req.protoMajor, req.protoMinor = protoMajor, protoMinor
+	req.url = url
+	
 	header, err := parseHeader(reader)
 	if err != nil {
 		return nil, err
@@ -45,7 +66,7 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	//	Host: doesntmatter
 	// the same. In the second case, any Host line is ignored.
 	if host, has := header["Host"]; 
-		has && len(host) > 0 && len(req.url.Host) == 0 {
+		has && len(host) > 0 && httpguts.ValidHostHeader(host) {
 		req.url.Host = host
 	}
 
@@ -53,6 +74,11 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	if pragma, has := header["Pragma"]; has && pragma == "no-cache" {
 		header["Cache-Control"] = "no-cache"
 	}
+	
+
+	// if len(hosts) == 1 && !httpguts.ValidHostHeader(hosts[0]) {
+	// 	return nil, badRequestError("malformed Host header")
+	// }
 
 	return req, nil
 }
@@ -78,7 +104,7 @@ func parseHeader(reader *bufio.Reader) (map[string]string, error) {
 			return headers, nil
 		} else if key == nil {
 			if len(line) < 2 {
-				return headers, errors.New("header: invalid format")
+				return headers, ErrorHeaderInvalidFormat
 			}
 
 			if line[len(line) - 1] == ':' {
@@ -95,7 +121,10 @@ func parseHeader(reader *bufio.Reader) (map[string]string, error) {
 			if len(key) == 0 || len(line) == 0 {
 				continue
 			}
-			headers[safe.BufferToString(titleCaser.Bytes(key))] = safe.BufferToString(line)
+			skey, sval := safe.BufferToString(titleCaser.Bytes(key)), safe.BufferToString(line)
+			if httpguts.ValidHeaderFieldName(skey) && httpguts.ValidHeaderFieldValue(sval) {
+				headers[skey] = sval
+			}
 			key = nil
 		}
 	}
@@ -103,7 +132,7 @@ func parseHeader(reader *bufio.Reader) (map[string]string, error) {
 }
 
 // parse first line: GET /index.html HTTP/1.0
-func parseHeadline(line []byte) ([]byte, []byte, []byte, bool) {
+func parseHeadline(line []byte) (string, []byte, []byte, bool) {
 	var method, uri, proto []byte
 	for i, b := range line {
 		if b == ' ' {
@@ -120,9 +149,9 @@ func parseHeadline(line []byte) ([]byte, []byte, []byte, bool) {
 		}
 	}
 	if method == nil || uri == nil || proto == nil {
-		return nil, nil, nil, false
+		return "", nil, nil, false
 	}
-	return method, uri, proto, true
+	return safe.BufferToString(method), uri, proto, true
 }
 
 func parseHTTPVersion(vers []byte) (major, minor uint16, ok bool) {

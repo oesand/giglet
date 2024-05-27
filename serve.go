@@ -29,11 +29,9 @@ func (server *Server) Serve(listener net.Listener) error {
 
 func (server *Server) work(conn net.Conn) {
 	if tlsConn, ok := conn.(*tls.Conn); ok {
-		timeout := server.handshakeTimeout()
-		if timeout > 0 {
-			dl := time.Now().Add(timeout)
-			conn.SetDeadline(dl)
-		}
+		server.applyReadTimeout(conn)
+		server.applyWriteTimeout(conn)
+
 		if err := tlsConn.Handshake(); err != nil {
 			// If the handshake failed due to the client not speaking
 			// TLS, assume they're speaking plaintext HTTP and write a
@@ -46,10 +44,7 @@ func (server *Server) work(conn net.Conn) {
 			server.logger().Printf("http: tls handshake error from %s: %v", conn.RemoteAddr(), err)
 			return
 		}
-		if timeout > 0 {
-			conn.SetReadDeadline(zeroTime)
-			conn.SetWriteDeadline(zeroTime)
-		}
+		conn.SetDeadline(zeroTime)
 
 		proto := tlsConn.ConnectionState().NegotiatedProtocol
 
@@ -72,23 +67,38 @@ func (server *Server) work(conn net.Conn) {
 
 	reader := getBufioReader(conn)
 
-	if server.ReadTimeout > 0 {
-		conn.SetReadDeadline(time.Now().Add(server.ReadTimeout))
-	}
 
-	req, err := readRequest(reader)
+	// if server.WriteTimeout > 0 {
+	// 	conn.SetDeadline(time.Now().Add(server.WriteTimeout))
+	// }
 
-	if err != nil {
-		switch {
-		case err == ErrorTooLarge:
-			conn.Write(responseRequestHeadersTooLarge)
-
-		case err == ErrorUnsupportedEncoding:
-			conn.Write(responseUnsupportedEncoding)
+	for {
+		if server.ReadTimeout > 0 {
+			conn.SetDeadline(time.Now().Add(server.ReadTimeout))
 		}
-		conn.Close()
-		readerPool.Put(reader)
-		return
+	
+		req, err := readRequest(reader)
+	
+		if err != nil {
+			switch {
+			case err == ErrorTooLarge:
+				conn.Write(responseRequestHeadersTooLarge)
+	
+			case err == ErrorUnsupportedEncoding:
+				conn.Write(responseUnsupportedEncoding)
+				
+			default:
+				if serr, ok := err.(*statusErrorResponse); ok {
+					serr.Write(conn)
+				} else {
+					conn.Write(responseNotProcessableError)
+				}
+
+			}
+			conn.Close()
+			readerPool.Put(reader)
+			return
+		}
 	}
 
 
