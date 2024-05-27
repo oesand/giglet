@@ -2,6 +2,7 @@ package specs
 
 import (
 	"giglet/safe"
+	"mime"
 	"strings"
 )
 
@@ -19,25 +20,51 @@ func parseCookies(cookie string) map[string]string {
 	return output
 }
 
+// Creates read-only headers struct from mapped valid cased (Title-Case) headers map
 func NewReadOnlyHeader(headers map[string]string) *ReadOnlyHeader {
-	return &ReadOnlyHeader{
-		headers: headers,
+	header := &ReadOnlyHeader{ headers: headers }
+	if media, has := headers["Content-Type"]; has {
+		contentType, mediaParams, err := mime.ParseMediaType(media)
+		if err != nil {
+			header.contentType = ContentType(media)
+		} else {
+			header.contentType = ContentType(contentType)
+			header.mediaParams = mediaParams
+		}
 	}
+	return header
 }
 
 type ReadOnlyHeader struct {
 	_ safe.NoCopy
 
-	headers       map[string]string
-	cookies       map[string]string
-	cookiesParsed bool
+	contentType 		ContentType
+	mediaParams			map[string]string
+
+	headers       		map[string]string
+	cookies       		map[string]string
+	cookiesParsed 		bool
 }
 
 func (header *ReadOnlyHeader) Get(name string) string {
 	if header.headers == nil {
 		return ""
+	} else if name == "Content-Type" {
+		return string(header.contentType)
 	}
+
 	return header.headers[name]
+}
+
+func (header *ReadOnlyHeader) ContentType() ContentType {
+	return header.contentType
+}
+
+func (header *ReadOnlyHeader) GetMediaParams(name string) string {
+	if header.mediaParams == nil {
+		return ""
+	}
+	return header.mediaParams[name]
 }
 
 func (header *ReadOnlyHeader) GetCookie(name string) string {

@@ -3,6 +3,7 @@ package specs
 import (
 	"encoding/binary"
 	"errors"
+	netur "net/url"
 	"strconv"
 	"strings"
 )
@@ -129,6 +130,11 @@ func ParseUrl(url string) (*Url, error) {
 
 			default:
 				return nil, invalidFormatError
+		}
+	}
+	if len(obj.Path) > 2 {
+		if path, err := netur.PathUnescape(obj.Path); err == nil {
+			obj.Path = path
 		}
 	}
 	return obj, nil
