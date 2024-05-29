@@ -15,8 +15,9 @@ type NextProtoHandler func(c net.Conn) error
 
 
 var (
-	HeadlineMaxLength uint64 = 1024
-	HeaderMaxLength uint64 = 1024
+	DefaultServerName = "giglet"
+	HeadlineMaxLength int64 = 2048
+	DefaultContentMaxSizeBytes int64 = 5 << 20 // 5MB
 
 	ErrorTooLarge = errors.New("too large")
 	ErrorServerClosed = errors.New("http: server closed")

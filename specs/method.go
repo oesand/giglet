@@ -31,3 +31,7 @@ func (method HttpMethod) IsPostable() bool {
 		method == HttpMethodDelete ||
 		method == HttpMethodPatch
 }
+
+func (method HttpMethod) HasBody() bool {
+	return !(method == HttpMethodHead || method == HttpMethodConnect || method == HttpMethodOptions)
+}

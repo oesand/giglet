@@ -6,13 +6,13 @@ import (
 	"net"
 )
 
-func readBufferLine(reader *bufio.Reader, limit uint64) ([]byte, error) {
+func readBufferLine(reader *bufio.Reader, limit int64) ([]byte, error) {
 	var line []byte
 	for {
 		l, more, err := reader.ReadLine()
 		if err != nil {
 			return nil, err
-		} else if uint64(len(line)) + uint64(len(l)) > limit {
+		} else if int64(len(line)) + int64(len(l)) > limit {
 			return nil, ErrorTooLarge
 		} else if line == nil && !more {
 			return l, nil

@@ -60,7 +60,7 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	//	Host: www.google.com
 	// and
 	//	GET http://www.google.com/index.html HTTP/1.1
-	//	Host: doesntmatter
+	//	Host: doesnt matter
 	// the same. In the second case, any Host line is ignored.
 	if host, has := header["Host"]; 
 		has && len(host) > 0 && httpguts.ValidHostHeader(host) {
@@ -94,7 +94,7 @@ func parseHeader(reader *bufio.Reader) (map[string]string, error) {
 
 	var key []byte
 	for {
-		line, err := readBufferLine(reader, HeaderMaxLength)
+		line, err := readBufferLine(reader, 0)
 		if err != nil {
 			return headers, errors.New("header: " + err.Error())
 		} else if line == nil || len(line) == 0 {

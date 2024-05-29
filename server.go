@@ -2,6 +2,7 @@ package giglet
 
 import (
 	"crypto/tls"
+	"errors"
 	"log"
 	"net"
 	"sync"
@@ -10,28 +11,32 @@ import (
 )
 
 type Server struct {
+	// handler to invoke
 	Handler RequestHandler
+
 	Logger *log.Logger
 	
+	// Server name for sending in response headers.
+	ServerName string
+
 	// ReadTimeout is the maximum duration for reading the entire
 	// request, including the body. A zero or negative value means
 	// there will be no timeout.
 	ReadTimeout time.Duration
 
 	// WriteTimeout is the maximum duration before timing out
-	// writes of the response. It is reset whenever a new
-	// request's header is read. Like ReadTimeout, it does not
-	// let Handlers make decisions on a per-request basis.
-	// A zero or negative value means there will be no timeout.
+	// writes of the response. A zero or negative value means
+	// there will be no timeout.
 	WriteTimeout time.Duration
 
-	// IdleTimeout is the maximum amount of time to wait for the
-	// next request when keep-alives are enabled. If IdleTimeout
-	// is zero, the value of ReadTimeout is used. If both are
-	// zero, there is no timeout.
-	IdleTimeout time.Duration
-
+	// TLSConfig optionally provides a TLS configuration 
 	TLSConfig *tls.Config
+
+	// ContentMaxSizeBytes controls the maximum number of bytes the
+	// server will read parsing the request header's keys and
+	// values, including the request line and the request body.
+	// If zero, DefaultContentMaxSizeBytes is used.
+	ContentMaxSizeBytes int64
 
 	nextProtos map[string]NextProtoHandler
 	mutex sync.Mutex
@@ -71,9 +76,80 @@ func (s *Server) NextProto(key string, handler NextProtoHandler) {
 }
 
 func (server *Server) ListenAndServe(addr string) error {
+	if server.isShuttingdown.Load() {
+		return ErrorServerClosed
+	} else if addr == "" {
+		addr = ":http"
+	}
 	lst, err := net.Listen("tcp4", addr)
 	if err != nil {
 		return err
 	}
 	return server.Serve(lst)
+}
+
+func (server *Server) ListenAndServeTLS(addr, certFile, keyFile string) error {
+	if server.isShuttingdown.Load() {
+		return ErrorServerClosed
+	} else if addr == "" {
+		addr = ":http"
+	}
+	lst, err := net.Listen("tcp4", addr)
+	if err != nil {
+		return err
+	}
+	return server.ServeTLS(lst, certFile, keyFile)
+}
+
+func (server *Server) ListenAndServeTLSRaw(addr string, cert *tls.Certificate) error {
+	if server.isShuttingdown.Load() {
+		return ErrorServerClosed
+	} else if addr == "" {
+		addr = ":http"
+	}
+	lst, err := net.Listen("tcp4", addr)
+	if err != nil {
+		return err
+	}
+	return server.ServeTLSRaw(lst, cert)
+}
+
+func (srv *Server) ServeTLS(lst net.Listener, certFile, keyFile string) error {
+	if len(certFile) == 0 || len(keyFile) == 0 {
+		return errors.New("unknown certificate source")
+	}
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return err
+	}
+	return srv.ServeTLSRaw(lst, &cert)
+}
+
+func (srv *Server) ServeTLSRaw(lst net.Listener, cert *tls.Certificate) error {
+	// Setup HTTP/2 before srv.Serve, to initialize srv.TLSConfig
+	// before we clone it and create the TLS Listener.
+	// if err := srv.setupHTTP2_ServeTLS(); err != nil {
+	// 	return err
+	// }
+
+	// [FIXME]: ADD TLS SUPPORT
+	var config *tls.Config
+	if srv.TLSConfig != nil {
+		config = srv.TLSConfig.Clone()
+	} else {
+		config = &tls.Config{}
+	}
+
+	// if !strSliceContains(config.NextProtos, "http/1.1") {
+	// 	config.NextProtos = append(config.NextProtos, "http/1.1")
+	// }
+
+	configHasCert := len(config.Certificates) > 0 || config.GetCertificate != nil
+	if !configHasCert || cert != nil {
+		config.Certificates = make([]tls.Certificate, 1)
+		config.Certificates[0] = *cert
+	}
+
+	listener := tls.NewListener(lst, config)
+	return srv.Serve(listener)
 }

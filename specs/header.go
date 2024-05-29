@@ -53,19 +53,22 @@ func (header *Header) SetCookieValue(name, value string) {
 	})
 }
 
-func (header *Header) Write(writer io.Writer) {
+func (header *Header) Write(writer io.Writer) (err error) {
 	if header.headers != nil {
 		for key, value := range header.headers {
-			writer.Write(safe.StringToBuffer(key))
-			writer.Write(directColonSpace)
-			writer.Write(safe.StringToBuffer(value))
-			writer.Write(directCrlf)
+			_, err = writer.Write(safe.StringToBuffer(key))
+			_, err = writer.Write(directColonSpace)
+			_, err = writer.Write(safe.StringToBuffer(value))
+			_, err = writer.Write(directCrlf)
+			if err != nil { return }
 		}
 	}
-	if header.cookies != nil {
+	if header.cookies != nil && err == nil {
 		for _, cookie := range header.cookies {
-			writer.Write(cookie.Append(headerSetCookie))
-			writer.Write(directCrlf)
+			_, err = writer.Write(cookie.Append(headerSetCookie))
+			_, err = writer.Write(directCrlf)
+			if err != nil { return }
 		}
 	}
+	return
 }
