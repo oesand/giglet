@@ -1,7 +1,6 @@
 package specs
 
 import (
-	"encoding/binary"
 	"errors"
 	netur "net/url"
 	"strconv"
@@ -98,7 +97,7 @@ func ParseUrl(url string) (*Url, error) {
 						obj.Path = url[mark:i]
 
 					case 6: // from 'query'
-						obj.Query = url[mark:i]
+						obj.query = url[mark:i]
 				}
 				step = 7 // goto 'hash'
 				i++; mark = i
@@ -123,7 +122,7 @@ func ParseUrl(url string) (*Url, error) {
 				obj.Path = url[mark:]
 
 			case 6: // query
-				obj.Query = url[mark:]
+				obj.query = url[mark:]
 
 			case 7: // hash
 				obj.Hash = url[mark:]
@@ -142,8 +141,10 @@ func ParseUrl(url string) (*Url, error) {
 
 type Url struct {
 	Scheme, Username, Password, 
-	Host, Path, Query, Hash string
+	Host, Path, query, Hash string
 	Port uint16
+
+	queryParams Query
 }
 
 func (url *Url) setPort(val string) error {
@@ -153,6 +154,28 @@ func (url *Url) setPort(val string) error {
 	}
 	url.Port = uint16(num)
 	return nil
+}
+
+func (url *Url) Query() string {
+	return url.query
+}
+
+func (url *Url) SetQuery(query string) {
+	url.queryParams = nil
+	url.query = query
+}
+
+func (url *Url) QueryParams() Query {
+	if url.queryParams != nil {
+		return url.queryParams
+	}
+	
+	query, err := ParseQuery(url.query)
+	if err != nil {
+		query = Query{}
+	}
+	url.queryParams = query
+	return query
 }
 
 func (url *Url) String() string {
@@ -174,16 +197,16 @@ func (url *Url) String() string {
 
 		if url.Port > 0 {
 			builder.WriteByte(':')
-			builder.Write(binary.BigEndian.AppendUint16(nil, url.Port))
+			builder.Write(strconv.AppendUint(nil, uint64(url.Port), 10))
 		}
 	}
 
 	if len(url.Path) > 0 {
 		builder.WriteString(url.Path)
 
-		if len(url.Query) > 0 {
+		if len(url.query) > 0 {
 			builder.WriteByte('?')
-			builder.WriteString(url.Query)
+			builder.WriteString(url.query)
 		}
 		if len(url.Hash) > 0 {
 			builder.WriteByte('#')

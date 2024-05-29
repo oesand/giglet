@@ -33,9 +33,9 @@ var (
 	httpV2 				= []byte("HTTP/2.0")
 	
 	directCrlf              = []byte("\r\n")
-	directColon        		= []byte(":")
+	directColon        		= []byte(": ")
 
-	rawCloseHeaders = []byte("Content-Type: text/plain; charset=utf-8\r\nConnection: close\r\n")
+	rawCloseHeaders 				= []byte("Content-Type: text/plain; charset=utf-8\r\nConnection: close\r\n")
 	responseDowngradeHTTPS 			= []byte("HTTP/1.0 400 Bad Request\r\n\r\nSent an HTTP request to an HTTPS server.\n")
 	responseRequestHeadersTooLarge 	= []byte("HTTP/1.1 431 Request Header Fields Too Large\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n431 Request Header Fields Too Large\n")
 	responseNotProcessableError 	= []byte("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n500 Unknown error while processing the request\n")

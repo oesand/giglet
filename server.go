@@ -11,10 +11,12 @@ import (
 )
 
 type Server struct {
-	// handler to invoke
+	// Handler to invoke 
 	Handler RequestHandler
 
 	Logger *log.Logger
+
+	Debug bool
 	
 	// Server name for sending in response headers.
 	ServerName string

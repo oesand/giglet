@@ -1,8 +1,10 @@
 package specs
 
 import (
-	"encoding/binary"
+	"errors"
 	"giglet/safe"
+	"io"
+	"strconv"
 )
 
 type StatusCode struct {
@@ -13,10 +15,29 @@ type StatusCode struct {
 }
 
 func (status *StatusCode) Append(buffer []byte) []byte {
-	buffer = binary.BigEndian.AppendUint16(buffer, status.Code)
+	buffer = strconv.AppendUint(buffer, uint64(status.Code), 10)
 	buffer = append(buffer, ' ')
 	buffer = append(buffer, status.Detail...)
 	return buffer
+}
+
+func (status *StatusCode) WriteAsHeadlineTo(writer io.Writer, is11 bool) error {
+	if writer == nil { 
+		return errors.New("invalid writer")
+	}
+	var line []byte
+	if is11 {
+		line = append(line, httpV11...)
+	} else {
+		line = append(line, httpV10...)
+	}
+
+	line = append(line, ' ')
+	line = status.Append(line)
+	line = append(line, directCrlf...)
+
+	_, err := writer.Write(line)
+	return err
 }
 
 var (

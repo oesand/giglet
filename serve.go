@@ -2,6 +2,7 @@ package giglet
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
 	"errors"
 	"giglet/specs"
@@ -55,7 +56,9 @@ func (server *Server) work(conn net.Conn) {
 				re.Conn.Close()
 				return
 			}
-			server.logger().Printf("http: tls handshake error from %s: %v", conn.RemoteAddr(), err)
+			if server.Debug {
+				server.logger().Printf("http: tls handshake error from %s: %v", conn.RemoteAddr(), err)
+			}
 			return
 		}
 		conn.SetDeadline(zeroTime)
@@ -70,12 +73,15 @@ func (server *Server) work(conn net.Conn) {
 		}
 	}
 
-	defer func() { // [FIXME]: Add continue and hijack
+	defer func() {
 		if err := recover(); err != nil && err != ErrorAbortHandler {
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
-			server.logger().Printf("http: panic serving %v: %v\n%s", conn.RemoteAddr(), err, buf)
+
+			if server.Debug {
+				server.logger().Printf("http: panic serving %v: %v\n%s", conn.RemoteAddr(), err, buf)
+			}
 		}
 	}()
 
@@ -92,8 +98,11 @@ func (server *Server) work(conn net.Conn) {
 		server.applyReadTimeout(conn)
 		req, err := readRequest(reader)
 		conn.SetReadDeadline(zeroTime)
-	
+		
 		if err != nil {
+			if server.Debug {
+				server.logger().Printf("http: read request error from %s: %v", conn.RemoteAddr(), err)
+			}
 			switch {
 			case err == ErrorTooLarge:
 				conn.Write(responseRequestHeadersTooLarge)
@@ -146,21 +155,39 @@ func (server *Server) work(conn net.Conn) {
 			}
 		}
 
-		if writeStatusLine(conn, req.ProtoAtLeast(1, 1), code) != nil || 
-			header.Write(conn) != nil {
+		err = WriteResponseHeadTo(conn, req.ProtoAtLeast(1, 1), code, header)
+		if err != nil {
+			if server.Debug {
+				server.logger().Printf("http: send response head to %s error: %v", conn.RemoteAddr(), err)
+			}
 			return
 		}
+		
 		if req.method.HasBody() || writable != nil {
 			if server.WriteTimeout > 0 {
 				server.applyWriteTimeout(conn)
 			}
 
-			writable.Write(conn)
+			writable.Respond(conn)
 			
 			if server.WriteTimeout > 0 {
 				conn.SetWriteDeadline(zeroTime)
 			}
 		}
+
+		if req.cachedMultipart != nil {
+			req.cachedMultipart.RemoveAll()
+		}
+
+		if req.hijacker != nil {
+			req.hijacker(conn)
+			conn.Close()
+			return
+		}
+
+		// conn.Close()
+
+		
 
 		return
 		
@@ -169,22 +196,24 @@ func (server *Server) work(conn net.Conn) {
 	}
 }
 
-func writeStatusLine(writer io.Writer, is11 bool, code *specs.StatusCode) error {
-	if writer == nil || code == nil { 
-		return errors.New("invalid writer or status code")
+func WriteResponseHeadTo(writer io.Writer, is11 bool, code *specs.StatusCode, header *specs.Header) error {
+	headbuf := &bytes.Buffer{}
+
+	if code == nil {
+		code = specs.StatusCodeOK
 	}
 
-	var line []byte
-	if is11 {
-		line = append(line, httpV11...)
-	} else {
-		line = append(line, httpV10...)
+	err := code.WriteAsHeadlineTo(headbuf, is11)
+	if err != nil {
+		return err
 	}
-
-	line = append(line, ' ')
-	line = code.Append(line)
-	line = append(line, directCrlf...)
-
-	_, err := writer.Write(line)
+	if header != nil {
+		_, err = header.WriteTo(headbuf)
+		if err != nil {
+			return err
+		}
+	}
+	headbuf.Write(directCrlf)
+	_, err = headbuf.WriteTo(writer)
 	return err
 }

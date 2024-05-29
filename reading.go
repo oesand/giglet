@@ -3,11 +3,11 @@ package giglet
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"giglet/safe"
 	"giglet/specs"
+	"strconv"
 
 	"golang.org/x/net/http/httpguts"
 )
@@ -104,14 +104,14 @@ func parseHeader(reader *bufio.Reader) (map[string]string, error) {
 				return headers, ErrorHeaderInvalidFormat
 			}
 
-			if line[len(line) - 1] == ':' {
+			if bytes.HasSuffix(line, directColon) {
 				key = line[:len(line) - 1]
 			} else {
 				key, value, ok := bytes.Cut(line, directColon)
 				if !ok || len(key) == 0 || len(value) == 0 {
 					continue
 				}
-				skey, sval := safe.BufferToString(specs.TitleCaseBytes(key)), safe.BufferToString(line)
+				skey, sval := safe.BufferToString(specs.TitleCaseBytes(key)), safe.BufferToString(value)
 				if httpguts.ValidHeaderFieldName(skey) && httpguts.ValidHeaderFieldValue(sval) {
 					headers[skey] = sval
 				}
@@ -155,7 +155,7 @@ func parseHeadline(line []byte) (string, []byte, []byte, bool) {
 	return safe.BufferToString(method), uri, proto, true
 }
 
-func parseHTTPVersion(vers []byte) (major, minor uint16, ok bool) {
+func parseHTTPVersion(vers []byte) (major , minor uint16, ok bool) {
 	if bytes.Compare(vers, httpV10) == 0 {
 		return 1, 0, true
 	} else if bytes.Compare(vers, httpV11) == 0 {
@@ -167,8 +167,13 @@ func parseHTTPVersion(vers []byte) (major, minor uint16, ok bool) {
 		return 0, 0, false
 	}
 
-	major = binary.BigEndian.Uint16(vers[5:6])
-	minor = binary.BigEndian.Uint16(vers[7:8])
-	ok = major != 0
-	return
+	maj, err := strconv.ParseUint(string(vers[5:6]), 10, 16)
+	if err != nil {
+		return 0, 0, false
+	}
+	min, err := strconv.ParseUint(string(vers[7:8]), 10, 16)
+	if err != nil {
+		return 0, 0, false
+	}
+	return uint16(maj), uint16(min), true
 }

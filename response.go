@@ -10,8 +10,6 @@ import (
 
 type Response interface {
 	StatusCode() *specs.StatusCode
-	SetStatusCode(*specs.StatusCode)
-
 	Header() *specs.Header
 }
 
@@ -22,7 +20,7 @@ type PreparableResponse interface {
 
 type WritableResponse interface {
 	Response
-	Write(io.Writer)
+	Respond(io.Writer)
 }
 
 type HeaderResponse struct {
@@ -64,10 +62,33 @@ func (resp *OncePrepareResponse) MarkOnce() bool {
 }
 
 
+type RedirectResponse struct {
+	header *specs.Header
+
+	Url string
+	Permanent bool
+}
+
+func (resp *RedirectResponse) StatusCode() *specs.StatusCode {
+	if resp.Permanent {
+		return specs.StatusCodePermanentRedirect
+	}
+	return specs.StatusCodeTemporaryRedirect
+}
+
+func (resp *RedirectResponse) Header() *specs.Header {
+	if resp.header == nil {
+		resp.header = &specs.Header{}
+		resp.header.Set("Location", resp.Url)
+	}
+	return resp.header
+}
+
+
 type TextResponse struct {
 	OncePrepareResponse
 
-	Content string
+	Text string
 	ContentType specs.ContentType
 }
 
@@ -77,12 +98,12 @@ func (resp *TextResponse) Prepare() {
 	if resp.ContentType == specs.ContentTypeUndefined {
 		resp.ContentType = specs.ContentTypePlain
 	}
-	resp.Header().Set("Content-Length", strconv.Itoa(len(resp.ContentType)))
+	resp.Header().Set("Content-Length", strconv.Itoa(len(resp.Text)))
 	resp.Header().Set("Content-Type", string(resp.ContentType))
 }
 
-func (resp *TextResponse) Write(writer io.Writer) {
-	writer.Write(safe.StringToBuffer(resp.Content))
+func (resp *TextResponse) Respond(writer io.Writer) {
+	writer.Write(safe.StringToBuffer(resp.Text))
 }
 
 
@@ -90,7 +111,7 @@ type StreamResponse struct {
 	OncePrepareResponse
 
 	Stream io.Reader
-	Size int64
+	Size uint64
 	ContentType specs.ContentType
 }
 
@@ -101,12 +122,12 @@ func (resp *StreamResponse) Prepare() {
 		resp.ContentType = specs.ContentTypeRaw
 	}
 	if resp.Size > 0 {
-		resp.Header().Set("Content-Length", strconv.FormatInt(resp.Size, 10))
+		resp.Header().Set("Content-Length", strconv.FormatUint(resp.Size, 10))
 	}
 	resp.Header().Set("Content-Type", string(resp.ContentType))
 }
 
-func (resp *StreamResponse) Write(writer io.Writer) {
+func (resp *StreamResponse) Respond(writer io.Writer) {
 	io.Copy(writer, resp.Stream)
 }
 

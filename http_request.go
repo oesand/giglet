@@ -1,9 +1,11 @@
 package giglet
 
 import (
+	"errors"
 	"giglet/safe"
 	"giglet/specs"
 	"io"
+	"mime/multipart"
 	"net"
 )
 
@@ -21,7 +23,11 @@ type HttpRequest struct {
 	protoMajor uint16
 	protoMinor uint16
 
-	stream io.ReadCloser
+	stream io.Reader
+
+	bodyParsed bool
+	cachedMultipart *multipart.Form
+	cachedForm specs.Query
 }
 
 func (req *HttpRequest) ProtoAtLeast(major, minor uint16) bool {
@@ -29,7 +35,7 @@ func (req *HttpRequest) ProtoAtLeast(major, minor uint16) bool {
 		req.protoMajor == major && req.protoMinor >= minor
 }
 
-func (req *HttpRequest) Stream() io.ReadCloser {
+func (req *HttpRequest) Stream() io.Reader {
 	return req.stream
 }
 
@@ -65,4 +71,60 @@ func (req *HttpRequest) SetExtra(key string, value any) {
 		req.extras = map[string]any{}
 	}
 	req.extras[key] = value
+}
+
+func (req *HttpRequest) PostForm() (specs.Query, error) {
+	if !req.method.IsPostable() {
+		return nil, errors.New("this request method does not imply receiving a body")
+	} else if req.cachedForm != nil {
+		return req.cachedForm, nil
+	} else if req.Header().ContentType() != specs.ContentTypeMultipart {
+		form, err := req.MultipartForm()
+		if err !=  nil {
+			return nil, err
+		}
+		return form.Value, nil
+	} else if req.Header().ContentType() != specs.ContentTypeForm {
+		return nil, errors.New("this Content-Type is not a urlencoded-form")
+	} else if req.bodyParsed {
+		return nil, nil
+	}
+	req.bodyParsed = true
+
+	buf, err := io.ReadAll(req.stream)
+	if err != nil {
+		return nil, err
+	}
+	req.cachedForm, err = specs.ParseQuery(string(buf))
+	if err != nil {
+		return nil, err
+	}
+	return req.cachedForm, nil
+}
+
+func (req *HttpRequest) MultipartForm() (*multipart.Form, error) {
+	if !req.method.IsPostable() {
+		return nil, errors.New("this request method does not imply receiving a body")
+	} else if req.Header().ContentType() != specs.ContentTypeMultipart {
+		return nil, errors.New("this Content-Type is not a multipart-form")
+	} else if req.cachedMultipart != nil {
+		return req.cachedMultipart, nil
+	} else if req.bodyParsed {
+		return nil, nil
+	}
+	req.bodyParsed = true
+
+	boundary := req.header.GetMediaParams("boundary")
+	if len(boundary) == 0 {
+		return nil, errors.New("this request Content-Type does not contains boundary")
+	}
+
+	reader := multipart.NewReader(req.stream, boundary)
+	form, err := reader.ReadForm(0)
+	if err != nil {
+		return nil, err
+	}
+	req.cachedMultipart = form
+	req.cachedForm = req.cachedMultipart.Value
+	return req.cachedMultipart, nil
 }

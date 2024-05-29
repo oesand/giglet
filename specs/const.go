@@ -1,15 +1,9 @@
 package specs
 
 import (
-	"mime/multipart"
-
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
-
-type MultipartForm multipart.Form
-type UploadFile multipart.FileHeader
-
 
 const TimeFormat = "Mon, 02 Jan 2006 15:04:05 GMT"
 
@@ -29,6 +23,9 @@ var (
 	directColonSpace        = []byte(": ")
 	directCrlf              = []byte("\r\n")
 	headerSetCookie			= []byte("Set-Cookie: ")
+
+	httpV10 			= []byte("HTTP/1.0")
+	httpV11 			= []byte("HTTP/1.1")
 )
 
 func TitleCase(content string) string {

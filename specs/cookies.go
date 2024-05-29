@@ -2,7 +2,7 @@ package specs
 
 import (
 	"bytes"
-	"encoding/binary"
+	"strconv"
 	"time"
 )
 
@@ -28,8 +28,8 @@ type Cookie struct {
 	SameSite 	CookieSameSite
 }
 
-func (cookie *Cookie) Append(buffer []byte) []byte {
-	builder := bytes.NewBuffer(buffer)
+func (cookie *Cookie) Bytes() []byte {
+	builder := bytes.Buffer{}
 	
 	builder.WriteString(cookie.Name)
 	builder.WriteByte('=')
@@ -39,7 +39,7 @@ func (cookie *Cookie) Append(buffer []byte) []byte {
 		builder.Write(cookieDelimiter)
 		builder.Write(cookieKeyMaxAge)
 		builder.WriteByte('=')
-		builder.Write(binary.BigEndian.AppendUint64(nil, cookie.MaxAge))
+		builder.Write(strconv.AppendUint(nil, cookie.MaxAge, 10))
 	} else if !cookie.Expires.IsZero() {
 		builder.Write(cookieDelimiter)
 		builder.Write(cookieKeyExpires)

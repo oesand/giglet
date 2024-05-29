@@ -1,6 +1,7 @@
 package specs
 
 import (
+	"bytes"
 	"giglet/safe"
 	"io"
 )
@@ -53,22 +54,22 @@ func (header *Header) SetCookieValue(name, value string) {
 	})
 }
 
-func (header *Header) Write(writer io.Writer) (err error) {
+func (header *Header) WriteTo(writer io.Writer) (int64, error) {
+	buf := bytes.Buffer{}
 	if header.headers != nil {
 		for key, value := range header.headers {
-			_, err = writer.Write(safe.StringToBuffer(key))
-			_, err = writer.Write(directColonSpace)
-			_, err = writer.Write(safe.StringToBuffer(value))
-			_, err = writer.Write(directCrlf)
-			if err != nil { return }
+			buf.Write(safe.StringToBuffer(key))
+			buf.Write(directColonSpace)
+			buf.Write(safe.StringToBuffer(value))
+			buf.Write(directCrlf)
 		}
 	}
-	if header.cookies != nil && err == nil {
+	if header.cookies != nil {
 		for _, cookie := range header.cookies {
-			_, err = writer.Write(cookie.Append(headerSetCookie))
-			_, err = writer.Write(directCrlf)
-			if err != nil { return }
+			buf.Write(headerSetCookie)
+			buf.Write(cookie.Bytes())
+			buf.Write(directCrlf)
 		}
 	}
-	return
+	return buf.WriteTo(writer)
 }
