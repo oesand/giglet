@@ -23,10 +23,10 @@ func (server *Server) Serve(listener net.Listener) error {
 
 	for {
 		conn, err := listener.Accept()
-		if err != nil {
-			if server.isShuttingdown.Load() {
-				return ErrorServerClosed
-			} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		if server.isShuttingdown.Load() {
+			return ErrorServerClosed
+		} else if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				time.Sleep(time.Second)
 				continue
 			}
@@ -37,7 +37,7 @@ func (server *Server) Serve(listener net.Listener) error {
 }
 
 func (server *Server) work(conn net.Conn) {
-	if server.Handler == nil {
+	if server.Handler == nil || server.isShuttingdown.Load() {
 		conn.Close()
 		return
 	}
@@ -84,6 +84,10 @@ func (server *Server) work(conn net.Conn) {
 			}
 		}
 	}()
+
+	if server.isShuttingdown.Load() {
+		return
+	}
 
 	// Without sync.Pool, because (*Reader).Reset are same
 	reader := bufio.NewReader(conn)
@@ -163,7 +167,6 @@ func (server *Server) work(conn net.Conn) {
 			}
 			return
 		}
-		
 		if req.method.CanHaveResponseBody() && writable != nil {
 			if server.WriteTimeout > 0 {
 				server.applyWriteTimeout(conn)
@@ -180,7 +183,9 @@ func (server *Server) work(conn net.Conn) {
 			req.cachedMultipart.RemoveAll()
 		}
 
-		if req.hijacker != nil {
+		if server.isShuttingdown.Load() {
+			return
+		} else if req.hijacker != nil {
 			req.hijacker(conn)
 			break
 		} else if req.Method() != specs.HttpMethodHead && writable == nil && code.ShouldHaveBody() {

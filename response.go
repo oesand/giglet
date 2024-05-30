@@ -36,8 +36,9 @@ func (resp *HeaderResponse) StatusCode() *specs.StatusCode {
 	return resp.statusCode
 }
 
-func (resp *HeaderResponse) SetStatusCode(code *specs.StatusCode) {
+func (resp *HeaderResponse) SetStatusCode(code *specs.StatusCode) Response {
 	resp.statusCode = code
+	return resp
 }
 
 func (resp *HeaderResponse) Header() *specs.Header {

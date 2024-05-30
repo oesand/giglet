@@ -48,9 +48,9 @@ var (
 	WebSocketCloseTLSHandshake        = &WebSocketClose{Code: 1015, Detail: []byte("(tls handshake error)")}
 )
 
-func ComputeWebSocketAcceptKey(challengeKey []byte) string {
+func ComputeWebSocketAcceptKey(challengeKey string) string {
 	h := sha1.New() // (CWE-326) -- https://datatracker.ietf.org/doc/html/rfc6455#page-54
-	h.Write(challengeKey)
+	h.Write([]byte(challengeKey))
 	h.Write(websocketAcceptBaseKey)
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }

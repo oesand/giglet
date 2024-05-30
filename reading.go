@@ -56,7 +56,7 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	req.header = specs.NewReadOnlyHeader(header)
 
 	if req.ProtoAtLeast(1, 1) { // [FIXME]: Add chunked transfer
-		if raw := req.header.Get("Transfer-Encoding"); len(raw) > 0 { // !ascii.EqualFold(raw, "chunked")
+		if raw := req.header.Get("Transfer-Encoding"); len(raw) > 0 { // !strings.EqualFold(raw, "chunked")
 			return nil, ErrorUnsupportedEncoding
 		}
 	}

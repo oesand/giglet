@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -133,7 +134,6 @@ func (srv *Server) ServeTLSRaw(lst net.Listener, cert *tls.Certificate) error {
 	// 	return err
 	// }
 
-	// [FIXME]: ADD TLS SUPPORT
 	var config *tls.Config
 	if srv.TLSConfig != nil {
 		config = srv.TLSConfig.Clone()
@@ -141,9 +141,9 @@ func (srv *Server) ServeTLSRaw(lst net.Listener, cert *tls.Certificate) error {
 		config = &tls.Config{}
 	}
 
-	// if !strSliceContains(config.NextProtos, "http/1.1") {
-	// 	config.NextProtos = append(config.NextProtos, "http/1.1")
-	// }
+	if !slices.Contains(config.NextProtos, "http/1.1") {
+		config.NextProtos = append(config.NextProtos, "http/1.1")
+	}
 
 	configHasCert := len(config.Certificates) > 0 || config.GetCertificate != nil
 	if !configHasCert || cert != nil {
@@ -153,4 +153,9 @@ func (srv *Server) ServeTLSRaw(lst net.Listener, cert *tls.Certificate) error {
 
 	listener := tls.NewListener(lst, config)
 	return srv.Serve(listener)
+}
+
+func (srv *Server) Shutdown() {
+	srv.isShuttingdown.Store(true)
+	srv.listenerTrack.Wait()
 }
