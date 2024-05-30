@@ -14,7 +14,11 @@ type StatusCode struct {
 	Detail []byte
 }
 
-func (status *StatusCode) Append(buffer []byte) []byte {
+func (status *StatusCode) ShouldHaveBody() bool {
+	return !(100 <= status.Code && status.Code <= 199 || status.Code == 204 || status.Code == 304)
+}
+
+func (status *StatusCode) AppendBytes(buffer []byte) []byte {
 	buffer = strconv.AppendUint(buffer, uint64(status.Code), 10)
 	buffer = append(buffer, ' ')
 	buffer = append(buffer, status.Detail...)
@@ -33,7 +37,7 @@ func (status *StatusCode) WriteAsHeadlineTo(writer io.Writer, is11 bool) error {
 	}
 
 	line = append(line, ' ')
-	line = status.Append(line)
+	line = status.AppendBytes(line)
 	line = append(line, directCrlf...)
 
 	_, err := writer.Write(line)

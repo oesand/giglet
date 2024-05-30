@@ -48,7 +48,7 @@ type statusErrorResponse struct {
 }
 
 func (err *statusErrorResponse) Error() string {
-	return string(err.code.Append(nil)) + ": " + err.text
+	return string(err.code.AppendBytes(nil)) + ": " + err.text
 }
 
 func (err *statusErrorResponse) Write(writer io.Writer) {
@@ -56,7 +56,7 @@ func (err *statusErrorResponse) Write(writer io.Writer) {
 
 	buff.Write(httpV11)
 	buff.WriteByte(' ')
-	buff.Write(err.code.Append(nil))
+	buff.Write(err.code.AppendBytes(nil))
 	buff.Write(directCrlf)
 	buff.Write(rawCloseHeaders)
 	buff.Write(directCrlf)

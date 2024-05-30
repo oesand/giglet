@@ -41,7 +41,6 @@ type Server struct {
 	ContentMaxSizeBytes int64
 
 	nextProtos map[string]NextProtoHandler
-	mutex sync.Mutex
 	isShuttingdown atomic.Bool
 	listenerTrack  sync.WaitGroup
 }

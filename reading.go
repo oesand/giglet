@@ -55,6 +55,12 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	}
 	req.header = specs.NewReadOnlyHeader(header)
 
+	if req.ProtoAtLeast(1, 1) { // [FIXME]: Add chunked transfer
+		if raw := req.header.Get("Transfer-Encoding"); len(raw) > 0 { // !ascii.EqualFold(raw, "chunked")
+			return nil, ErrorUnsupportedEncoding
+		}
+	}
+
 	// RFC 7230, section 5.3: Must treat
 	//	GET /index.html HTTP/1.1
 	//	Host: www.google.com
@@ -72,11 +78,7 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 		header["Cache-Control"] = "no-cache"
 	}
 	
-
-	// if len(hosts) == 1 && !httpguts.ValidHostHeader(hosts[0]) {
-	// 	return nil, badRequestError("malformed Host header")
-	// }
-
+	req.stream = reader
 	return req, nil
 }
 
@@ -97,7 +99,7 @@ func parseHeader(reader *bufio.Reader) (map[string]string, error) {
 		line, err := readBufferLine(reader, 0)
 		if err != nil {
 			return headers, errors.New("header: " + err.Error())
-		} else if line == nil || len(line) == 0 {
+		} else if len(line) == 0 {
 			return headers, nil
 		} else if key == nil {
 			if len(line) < 2 {
@@ -129,7 +131,6 @@ func parseHeader(reader *bufio.Reader) (map[string]string, error) {
 			key = nil
 		}
 	}
-	return headers, nil
 }
 
 // parse first line: GET /index.html HTTP/1.0
@@ -155,12 +156,12 @@ func parseHeadline(line []byte) (string, []byte, []byte, bool) {
 	return safe.BufferToString(method), uri, proto, true
 }
 
-func parseHTTPVersion(vers []byte) (major , minor uint16, ok bool) {
-	if bytes.Compare(vers, httpV10) == 0 {
+func parseHTTPVersion(vers []byte) (major, minor uint16, ok bool) {
+	if bytes.EqualFold(vers, httpV10) {
 		return 1, 0, true
-	} else if bytes.Compare(vers, httpV11) == 0 {
+	} else if bytes.EqualFold(vers, httpV11) {
 		return 1, 1, true
-	} else if bytes.Compare(vers, httpV2) == 0 {
+	} else if bytes.EqualFold(vers, httpV2) {
 		return 2, 0, true
 	} else if !bytes.HasPrefix(vers, httpVersionPrefix) || 
 		len(vers) != 8 || vers[6] != '.' {

@@ -32,6 +32,6 @@ func (method HttpMethod) IsPostable() bool {
 		method == HttpMethodPatch
 }
 
-func (method HttpMethod) HasBody() bool {
+func (method HttpMethod) CanHaveResponseBody() bool {
 	return !(method == HttpMethodHead || method == HttpMethodConnect || method == HttpMethodOptions)
 }

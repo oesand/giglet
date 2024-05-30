@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-var invalidFormatError = errors.New("url: invalid format")
+var errorInvalidFormat = errors.New("url: invalid format")
 
 func ParseUrl(url string) (*Url, error) {
 	obj := &Url{}
@@ -21,11 +21,11 @@ func ParseUrl(url string) (*Url, error) {
 					if i != 0 {
 						switch step { // read as 'path'
 							default:
-								return nil, invalidFormatError
+								return nil, errorInvalidFormat
 	
 							case 0, 3: // from 'host'
 								if i - mark < 1 {
-									return nil, invalidFormatError
+									return nil, errorInvalidFormat
 								}
 								obj.Host = url[mark:i]
 			
@@ -42,12 +42,12 @@ func ParseUrl(url string) (*Url, error) {
 				}
 			case ':':
 				if i < 1 { // ensure host:port format
-					return nil, invalidFormatError
+					return nil, errorInvalidFormat
 				} else if i+2 < end && 
 					url[i+1] == '/' && url[i+2] == '/' { // read as 'scheme'
 					
 					if step != 0 && i < 1 {
-						return nil, invalidFormatError
+						return nil, errorInvalidFormat
 					}
 					step = 3 // goto 'host'
 					obj.Scheme = url[:i]
@@ -55,7 +55,7 @@ func ParseUrl(url string) (*Url, error) {
 					continue
 				} else if step == 0 || step == 3 { // read as 'host'
 					if i - mark < 1 {
-						return nil, invalidFormatError
+						return nil, errorInvalidFormat
 					}
 					obj.Host = url[mark:i]
 					step = 4 // goto 'port'
@@ -65,7 +65,7 @@ func ParseUrl(url string) (*Url, error) {
 			case '@':
 				if step == 4 { // from 'port', read as 'password'
 					if i - mark < 1 {
-						return nil, invalidFormatError
+						return nil, errorInvalidFormat
 					}
 					obj.Username = obj.Host
 					obj.Password = url[mark:i]
@@ -74,24 +74,24 @@ func ParseUrl(url string) (*Url, error) {
 					i++; mark = i
 					continue
 				} else {
-					return nil, invalidFormatError
+					return nil, errorInvalidFormat
 				}
 			case '?':
 				if step == 5 { // from 'path', read as 'query'
 					if i - mark < 1 {
-						return nil, invalidFormatError
+						return nil, errorInvalidFormat
 					}
 					obj.Path = url[mark:i]
 					step = 6 // goto 'query'
 					i++; mark = i
 					continue
 				} else {
-					return nil, invalidFormatError
+					return nil, errorInvalidFormat
 				}
 			case '#':
 				switch step { // read as 'hash'
 					default:
-						return nil, invalidFormatError
+						return nil, errorInvalidFormat
 
 					case 5: // from 'path'
 						obj.Path = url[mark:i]
@@ -106,7 +106,7 @@ func ParseUrl(url string) (*Url, error) {
 			i++
 		}
 		if end - mark < 0 {
-			return nil, invalidFormatError
+			return nil, errorInvalidFormat
 		}
 		switch step {
 			case 0, 3: // host
@@ -128,7 +128,7 @@ func ParseUrl(url string) (*Url, error) {
 				obj.Hash = url[mark:]
 
 			default:
-				return nil, invalidFormatError
+				return nil, errorInvalidFormat
 		}
 	}
 	if len(obj.Path) > 2 {
@@ -167,6 +167,9 @@ func (url *Url) SetQuery(query string) {
 
 func (url *Url) QueryParams() Query {
 	if url.queryParams != nil {
+		return url.queryParams
+	} else if len(url.query) == 0 {
+		url.queryParams = Query{}
 		return url.queryParams
 	}
 	

@@ -111,15 +111,16 @@ func (server *Server) work(conn net.Conn) {
 				conn.Write(responseUnsupportedEncoding)
 				
 			default:
-				if serr, ok := err.(*statusErrorResponse); ok {
-					serr.Write(conn)
-				} else {
-					conn.Write(responseNotProcessableError)
+				if !isCommonNetReadError(err) {
+					if serr, ok := err.(*statusErrorResponse); ok {
+						serr.Write(conn)
+					} else {
+						conn.Write(responseNotProcessableError)
+					}
 				}
 
 			}
-			conn.Close()
-			return
+			break
 		}
 
 		resp := handler(req)
@@ -133,7 +134,7 @@ func (server *Server) work(conn net.Conn) {
 
 			header = resp.Header()
 			code = resp.StatusCode()
-			writable = resp.(WritableResponse)
+			writable, _ = resp.(WritableResponse)
 		}
 		if header == nil {
 			header = &specs.Header{}
@@ -148,7 +149,7 @@ func (server *Server) work(conn net.Conn) {
 		header.Set("Date", time.Now().Format(specs.TimeFormat))
 
 		if code == nil {
-			if !req.Method().HasBody() || writable == nil {
+			if !req.Method().CanHaveResponseBody() || writable == nil {
 				code = specs.StatusCodeNoContent
 			} else {
 				code = specs.StatusCodeOK
@@ -163,12 +164,12 @@ func (server *Server) work(conn net.Conn) {
 			return
 		}
 		
-		if req.method.HasBody() || writable != nil {
+		if req.method.CanHaveResponseBody() && writable != nil {
 			if server.WriteTimeout > 0 {
 				server.applyWriteTimeout(conn)
 			}
 
-			writable.Respond(conn)
+			writable.WriteBody(conn)
 			
 			if server.WriteTimeout > 0 {
 				conn.SetWriteDeadline(zeroTime)
@@ -181,19 +182,12 @@ func (server *Server) work(conn net.Conn) {
 
 		if req.hijacker != nil {
 			req.hijacker(conn)
-			conn.Close()
-			return
+			break
+		} else if req.Method() != specs.HttpMethodHead && writable == nil && code.ShouldHaveBody() {
+			break
 		}
-
-		// conn.Close()
-
-		
-
-		return
-		
-		// [FIXME]: ADD >> ReuseConnection
-
 	}
+	conn.Close()
 }
 
 func WriteResponseHeadTo(writer io.Writer, is11 bool, code *specs.StatusCode, header *specs.Header) error {

@@ -16,15 +16,12 @@ type HttpRequest struct {
 	hijacker HijackHandler
 	extras map[string]any
 
+	protoMajor, protoMinor uint16
 	method specs.HttpMethod
 	url *specs.Url
 	header *specs.ReadOnlyHeader
 
-	protoMajor uint16
-	protoMinor uint16
-
 	stream io.Reader
-
 	bodyParsed bool
 	cachedMultipart *multipart.Form
 	cachedForm specs.Query

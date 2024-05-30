@@ -20,7 +20,7 @@ type PreparableResponse interface {
 
 type WritableResponse interface {
 	Response
-	Respond(io.Writer)
+	WriteBody(io.Writer)
 }
 
 type HeaderResponse struct {
@@ -102,7 +102,7 @@ func (resp *TextResponse) Prepare() {
 	resp.Header().Set("Content-Type", string(resp.ContentType))
 }
 
-func (resp *TextResponse) Respond(writer io.Writer) {
+func (resp *TextResponse) WriteBody(writer io.Writer) {
 	writer.Write(safe.StringToBuffer(resp.Text))
 }
 
@@ -127,7 +127,7 @@ func (resp *StreamResponse) Prepare() {
 	resp.Header().Set("Content-Type", string(resp.ContentType))
 }
 
-func (resp *StreamResponse) Respond(writer io.Writer) {
+func (resp *StreamResponse) WriteBody(writer io.Writer) {
 	io.Copy(writer, resp.Stream)
 }
 
