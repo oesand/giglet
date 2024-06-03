@@ -29,54 +29,54 @@ type Cookie struct {
 }
 
 func (cookie *Cookie) Bytes() []byte {
-	builder := bytes.Buffer{}
+	var buf bytes.Buffer
 	
-	builder.WriteString(cookie.Name)
-	builder.WriteByte('=')
-	builder.WriteString(cookie.Value)
+	buf.WriteString(cookie.Name)
+	buf.WriteByte('=')
+	buf.WriteString(cookie.Value)
 
 	if cookie.MaxAge > 0 {
-		builder.Write(cookieDelimiter)
-		builder.Write(cookieKeyMaxAge)
-		builder.WriteByte('=')
-		builder.Write(strconv.AppendUint(nil, cookie.MaxAge, 10))
+		buf.Write(cookieDelimiter)
+		buf.Write(cookieKeyMaxAge)
+		buf.WriteByte('=')
+		buf.Write(strconv.AppendUint(nil, cookie.MaxAge, 10))
 	} else if !cookie.Expires.IsZero() {
-		builder.Write(cookieDelimiter)
-		builder.Write(cookieKeyExpires)
-		builder.WriteByte('=')
-		builder.Write(cookie.Expires.UTC().AppendFormat(nil, TimeFormat))
+		buf.Write(cookieDelimiter)
+		buf.Write(cookieKeyExpires)
+		buf.WriteByte('=')
+		buf.Write(cookie.Expires.UTC().AppendFormat(nil, TimeFormat))
 	}
 
 	if len(cookie.Domain) > 0 {
-		builder.Write(cookieDelimiter)
-		builder.Write(cookieKeyDomain)
-		builder.WriteByte('=')
-		builder.WriteString(cookie.Domain)
+		buf.Write(cookieDelimiter)
+		buf.Write(cookieKeyDomain)
+		buf.WriteByte('=')
+		buf.WriteString(cookie.Domain)
 	}
 
 	if len(cookie.Path) > 0 {
-		builder.Write(cookieDelimiter)
-		builder.Write(cookieKeyPath)
-		builder.WriteByte('=')
-		builder.WriteString(cookie.Path)
+		buf.Write(cookieDelimiter)
+		buf.Write(cookieKeyPath)
+		buf.WriteByte('=')
+		buf.WriteString(cookie.Path)
 	}
 
 	if cookie.HttpOnly {
-		builder.Write(cookieDelimiter)
-		builder.Write(cookieKeyHTTPOnly)
+		buf.Write(cookieDelimiter)
+		buf.Write(cookieKeyHTTPOnly)
 	}
 
 	if cookie.Secure {
-		builder.Write(cookieDelimiter)
-		builder.Write(cookieKeySecure)
+		buf.Write(cookieDelimiter)
+		buf.Write(cookieKeySecure)
 	}
 
 	if len(cookie.SameSite) > 0 {
-		builder.Write(cookieDelimiter)
-		builder.Write(cookieKeySameSite)
-		builder.WriteByte('=')
-		builder.WriteString(string(cookie.SameSite))
+		buf.Write(cookieDelimiter)
+		buf.Write(cookieKeySameSite)
+		buf.WriteByte('=')
+		buf.WriteString(string(cookie.SameSite))
 	}
 
-	return builder.Bytes()
+	return buf.Bytes()
 }

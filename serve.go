@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"runtime"
+	"sync"
 	"time"
 )
 
@@ -16,6 +17,10 @@ import (
 func (server *Server) Serve(listener net.Listener) error {
 	if listener == nil {
 		return errors.New("empty listener")
+	} else if server.isShuttingdown.Load() {
+		return ErrorServerClosed
+	} else if err := server.ensureConfigureHTTP2(false); err != nil {
+		return err
 	}
 
 	server.listenerTrack.Add(1)
@@ -24,6 +29,9 @@ func (server *Server) Serve(listener net.Listener) error {
 	for {
 		conn, err := listener.Accept()
 		if server.isShuttingdown.Load() {
+			if err == nil {
+				conn.Close()
+			}
 			return ErrorServerClosed
 		} else if err != nil {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
@@ -35,6 +43,8 @@ func (server *Server) Serve(listener net.Listener) error {
 		go server.work(conn)
 	}
 }
+
+var bufioReaderPool sync.Pool
 
 func (server *Server) work(conn net.Conn) {
 	if server.Handler == nil || server.isShuttingdown.Load() {
@@ -67,7 +77,7 @@ func (server *Server) work(conn net.Conn) {
 
 		if server.nextProtos != nil {
 			if handler, ok := server.nextProtos[proto]; ok {
-				handler(conn)
+				handler(tlsConn)
 				return
 			}
 		}
@@ -86,11 +96,17 @@ func (server *Server) work(conn net.Conn) {
 	}()
 
 	if server.isShuttingdown.Load() {
+		conn.Close()
 		return
 	}
 
-	// Without sync.Pool, because (*Reader).Reset are same
-	reader := bufio.NewReader(conn)
+	var reader *bufio.Reader
+	if rd := bufioReaderPool.Get(); rd != nil {
+		reader = rd.(*bufio.Reader)
+		reader.Reset(conn)
+	} else {
+		reader = bufio.NewReader(conn)
+	}
 
 	for {
 		if server.ContentMaxSizeBytes > 0 {
@@ -165,7 +181,7 @@ func (server *Server) work(conn net.Conn) {
 			if server.Debug {
 				server.logger().Printf("http: send response head to %s error: %v", conn.RemoteAddr(), err)
 			}
-			return
+			break
 		}
 		if req.method.CanHaveResponseBody() && writable != nil {
 			if server.WriteTimeout > 0 {
@@ -184,7 +200,7 @@ func (server *Server) work(conn net.Conn) {
 		}
 
 		if server.isShuttingdown.Load() {
-			return
+			break
 		} else if req.hijacker != nil {
 			req.hijacker(conn)
 			break
@@ -192,22 +208,25 @@ func (server *Server) work(conn net.Conn) {
 			break
 		}
 	}
+	
 	conn.Close()
+	reader.Reset(nil)
+	bufioReaderPool.Put(reader)
 }
 
 func WriteResponseHeadTo(writer io.Writer, is11 bool, code *specs.StatusCode, header *specs.Header) error {
-	headbuf := &bytes.Buffer{}
-
+	var headbuf bytes.Buffer
+	
 	if code == nil {
 		code = specs.StatusCodeOK
 	}
 
-	err := code.WriteAsHeadlineTo(headbuf, is11)
+	err := code.WriteAsHeadlineTo(&headbuf, is11)
 	if err != nil {
 		return err
 	}
 	if header != nil {
-		_, err = header.WriteTo(headbuf)
+		_, err = header.WriteTo(&headbuf)
 		if err != nil {
 			return err
 		}

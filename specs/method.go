@@ -26,10 +26,8 @@ func (method HttpMethod) IsValid() bool {
 }
 
 func (method HttpMethod) IsPostable() bool {
-	return method == HttpMethodPost ||
-		method == HttpMethodPut ||
-		method == HttpMethodDelete ||
-		method == HttpMethodPatch
+	return method == HttpMethodPost || method == HttpMethodPut ||
+		method == HttpMethodDelete || method == HttpMethodPatch
 }
 
 func (method HttpMethod) CanHaveResponseBody() bool {

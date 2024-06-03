@@ -41,9 +41,13 @@ type Server struct {
 	// If zero, DefaultContentMaxSizeBytes is used.
 	ContentMaxSizeBytes int64
 
+	onceV2 atomic.Bool
 	nextProtos map[string]NextProtoHandler
 	isShuttingdown atomic.Bool
 	listenerTrack  sync.WaitGroup
+
+	mutex sync.Mutex
+	onShutdown []EventHandler
 }
 
 func (server *Server) logger() *log.Logger {
@@ -65,16 +69,20 @@ func (server *Server) applyWriteTimeout(conn net.Conn) {
 	}
 }
 
-func (s *Server) NextProto(key string, handler NextProtoHandler) {
-	if s.nextProtos == nil {
-		s.nextProtos = map[string]NextProtoHandler{}
-	}
-	if s.TLSConfig == nil {
-		s.TLSConfig = &tls.Config{}
-	}
+func (server *Server) NextProto(proto string, handler NextProtoHandler) {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
 
-	s.TLSConfig.NextProtos = append(s.TLSConfig.NextProtos, key)
-	s.nextProtos[key] = handler
+	if server.nextProtos == nil {
+		server.nextProtos = map[string]NextProtoHandler{}
+	}
+	if server.TLSConfig == nil {
+		server.TLSConfig = &tls.Config{}
+	}
+	if !slices.Contains(server.TLSConfig.NextProtos, proto) {
+		server.TLSConfig.NextProtos = append(server.TLSConfig.NextProtos, proto)
+	}
+	server.nextProtos[proto] = handler
 }
 
 func (server *Server) ListenAndServe(addr string) error {
@@ -103,7 +111,7 @@ func (server *Server) ListenAndServeTLS(addr, certFile, keyFile string) error {
 	return server.ServeTLS(lst, certFile, keyFile)
 }
 
-func (server *Server) ListenAndServeTLSRaw(addr string, cert *tls.Certificate) error {
+func (server *Server) ListenAndServeTLSRaw(addr string, cert tls.Certificate) error {
 	if server.isShuttingdown.Load() {
 		return ErrorServerClosed
 	} else if addr == "" {
@@ -124,38 +132,53 @@ func (srv *Server) ServeTLS(lst net.Listener, certFile, keyFile string) error {
 	if err != nil {
 		return err
 	}
-	return srv.ServeTLSRaw(lst, &cert)
+	return srv.ServeTLSRaw(lst, cert)
 }
 
-func (srv *Server) ServeTLSRaw(lst net.Listener, cert *tls.Certificate) error {
+func (server *Server) ServeTLSRaw(lst net.Listener, cert tls.Certificate) error {
 	// Setup HTTP/2 before srv.Serve, to initialize srv.TLSConfig
 	// before we clone it and create the TLS Listener.
-	// if err := srv.setupHTTP2_ServeTLS(); err != nil {
-	// 	return err
-	// }
+	if err := server.ensureConfigureHTTP2(true); err != nil {
+		return err
+	}
 
 	var config *tls.Config
-	if srv.TLSConfig != nil {
-		config = srv.TLSConfig.Clone()
+	if server.TLSConfig != nil {
+		config = server.TLSConfig.Clone()
 	} else {
 		config = &tls.Config{}
 	}
 
-	if !slices.Contains(config.NextProtos, "http/1.1") {
-		config.NextProtos = append(config.NextProtos, "http/1.1")
+	if !slices.Contains(config.NextProtos, httpV1NextProtoTLS) {
+		config.NextProtos = append(config.NextProtos, httpV1NextProtoTLS)
 	}
 
 	configHasCert := len(config.Certificates) > 0 || config.GetCertificate != nil
-	if !configHasCert || cert != nil {
+	if !configHasCert {
 		config.Certificates = make([]tls.Certificate, 1)
-		config.Certificates[0] = *cert
+		config.Certificates[0] = cert
 	}
 
 	listener := tls.NewListener(lst, config)
-	return srv.Serve(listener)
+	return server.Serve(listener)
 }
 
-func (srv *Server) Shutdown() {
-	srv.isShuttingdown.Store(true)
-	srv.listenerTrack.Wait()
+func (server *Server) OnShutdown(handler EventHandler) {
+	if server.isShuttingdown.Load() {
+		return
+	}
+	server.mutex.Lock()
+	server.onShutdown = append(server.onShutdown, handler)
+	server.mutex.Unlock()
+}
+
+func (server *Server) Shutdown() {
+	server.mutex.Lock()
+	for _, handle := range server.onShutdown {
+		go handle()
+	}
+	server.mutex.Unlock()
+
+	server.isShuttingdown.Store(true)
+	server.listenerTrack.Wait()
 }

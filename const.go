@@ -2,6 +2,7 @@ package giglet
 
 import (
 	"bytes"
+	"crypto/tls"
 	"errors"
 	"giglet/specs"
 	"io"
@@ -10,9 +11,9 @@ import (
 )
 
 type RequestHandler func(request *HttpRequest) Response
-type HijackHandler func(c net.Conn)
-type NextProtoHandler func(c net.Conn) error
-
+type HijackHandler func(conn net.Conn)
+type NextProtoHandler func(conn *tls.Conn)
+type EventHandler func()
 
 var (
 	DefaultServerName = "giglet"
@@ -26,7 +27,9 @@ var (
 	ErrorAbortHandler = errors.New("http: abort Handler")
 
 	zeroTime time.Time
-	
+	httpV1NextProtoTLS 	= "http/1.1"
+	httpV2NextProtoTLS 	= "h2"
+
 	httpVersionPrefix 	= []byte("HTTP/")
 	httpV10 			= []byte("HTTP/1.0")
 	httpV11 			= []byte("HTTP/1.1")
@@ -52,15 +55,15 @@ func (err *statusErrorResponse) Error() string {
 }
 
 func (err *statusErrorResponse) Write(writer io.Writer) {
-	buff := bytes.Buffer{}
+	var buf bytes.Buffer
 
-	buff.Write(httpV11)
-	buff.WriteByte(' ')
-	buff.Write(err.code.AppendBytes(nil))
-	buff.Write(directCrlf)
-	buff.Write(rawCloseHeaders)
-	buff.Write(directCrlf)
-	buff.WriteString(err.text)
+	buf.Write(httpV11)
+	buf.WriteByte(' ')
+	buf.Write(err.code.AppendBytes(nil))
+	buf.Write(directCrlf)
+	buf.Write(rawCloseHeaders)
+	buf.Write(directCrlf)
+	buf.WriteString(err.text)
 
-	buff.WriteTo(writer)
+	buf.WriteTo(writer)
 }
