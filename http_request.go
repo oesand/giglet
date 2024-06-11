@@ -21,7 +21,6 @@ type HttpRequest struct {
 	url *specs.Url
 	header *specs.ReadOnlyHeader
 
-	chunked bool
 	stream io.Reader
 	bodyParsed bool
 	cachedMultipart *multipart.Form

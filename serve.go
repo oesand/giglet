@@ -145,7 +145,7 @@ func (server *Server) work(conn net.Conn) {
 
 		resp := handler(req)
 		var header *specs.Header
-		var code *specs.StatusCode
+		var code specs.StatusCode
 		var writable WritableResponse
 		if resp != nil {
 			if prep, ok := resp.(PreparableResponse); ok {
@@ -168,7 +168,7 @@ func (server *Server) work(conn net.Conn) {
 
 		header.Set("Date", time.Now().Format(specs.TimeFormat))
 
-		if code == nil {
+		if !code.IsValid() {
 			if !req.Method().CanHaveResponseBody() || writable == nil {
 				code = specs.StatusCodeNoContent
 			} else {
@@ -214,10 +214,10 @@ func (server *Server) work(conn net.Conn) {
 	bufioReaderPool.Put(reader)
 }
 
-func WriteResponseHeadTo(writer io.Writer, is11 bool, code *specs.StatusCode, header *specs.Header) error {
+func WriteResponseHeadTo(writer io.Writer, is11 bool, code specs.StatusCode, header *specs.Header) error {
 	var headbuf bytes.Buffer
 	
-	if code == nil {
+	if !code.IsValid() {
 		code = specs.StatusCodeOK
 	}
 

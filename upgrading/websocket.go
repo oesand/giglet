@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func UpgradeWebSocket(req *giglet.HttpRequest, enableCompression bool, handler WebSocketHandler) giglet.Response {
+func UpgradeWebSocket(req giglet.Request, enableCompression bool, handler WebSocketHandler) giglet.Response {
 	if req.Method() != specs.HttpMethodGet {
 		return (&giglet.TextResponse{
 			Text: "websocket: upgrading required request method - GET",
@@ -33,8 +33,11 @@ func UpgradeWebSocket(req *giglet.HttpRequest, enableCompression bool, handler W
 			Text: "websocket: not a websocket handshake: `Sec-WebSocket-Key' header is missing or blank",
 		}).SetStatusCode(specs.StatusCodeBadRequest)
 	}
-	req.Hijack(func(c net.Conn) { // [FIXME]: Wrap request to websocket
-		handler(nil)
+	req.Hijack(func(conn net.Conn) {
+		handler(&WebSocketConn{
+			request: req,
+			conn: conn,
+		})
 	})
 	return &WebSocketUpgradeResponse{
 		ChallengeKey: challengeKey,
@@ -50,7 +53,7 @@ type WebSocketUpgradeResponse struct {
 	header     *specs.Header
 }
 
-func (*WebSocketUpgradeResponse) StatusCode() *specs.StatusCode {
+func (*WebSocketUpgradeResponse) StatusCode() specs.StatusCode {
 	return specs.StatusCodeSwitchingProtocols
 }
 

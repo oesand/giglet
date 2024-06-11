@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-type RequestHandler func(request *HttpRequest) Response
+type RequestHandler func(request Request) Response
 type HijackHandler func(conn net.Conn)
 type NextProtoHandler func(conn *tls.Conn)
 type EventHandler func()
@@ -46,7 +46,7 @@ var (
 )
 
 type statusErrorResponse struct {
-	code *specs.StatusCode
+	code specs.StatusCode
 	text string
 }
 

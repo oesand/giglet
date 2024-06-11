@@ -1,6 +1,7 @@
 package giglet
 
 import (
+	"fmt"
 	"giglet/safe"
 	"giglet/specs"
 	"io"
@@ -9,7 +10,7 @@ import (
 )
 
 type Response interface {
-	StatusCode() *specs.StatusCode
+	StatusCode() specs.StatusCode
 	Header() *specs.Header
 }
 
@@ -25,19 +26,20 @@ type WritableResponse interface {
 
 type HeaderResponse struct {
 	_ safe.NoCopy
+
 	statusCode *specs.StatusCode
 	header *specs.Header
 }
 
-func (resp *HeaderResponse) StatusCode() *specs.StatusCode {
+func (resp *HeaderResponse) StatusCode() specs.StatusCode {
 	if resp.statusCode == nil {
-		resp.statusCode = specs.StatusCodeOK
+		resp.statusCode = &specs.StatusCodeOK
 	}
-	return resp.statusCode
+	return *resp.statusCode
 }
 
-func (resp *HeaderResponse) SetStatusCode(code *specs.StatusCode) Response {
-	resp.statusCode = code
+func (resp *HeaderResponse) SetStatusCode(code specs.StatusCode) Response {
+	resp.statusCode = &code
 	return resp
 }
 
@@ -72,9 +74,9 @@ type RedirectResponse struct {
 
 func (resp *RedirectResponse) StatusCode() *specs.StatusCode {
 	if resp.Permanent {
-		return specs.StatusCodePermanentRedirect
+		return &specs.StatusCodePermanentRedirect
 	}
-	return specs.StatusCodeTemporaryRedirect
+	return &specs.StatusCodeTemporaryRedirect
 }
 
 func (resp *RedirectResponse) Header() *specs.Header {
@@ -83,6 +85,14 @@ func (resp *RedirectResponse) Header() *specs.Header {
 		resp.header.Set("Location", resp.Url)
 	}
 	return resp.header
+}
+
+func (resp *RedirectResponse) Error() string {
+	output := "redirect to: " + resp.Url
+	if resp.Permanent {
+		output = "permanent " + output 
+	}
+	return output
 }
 
 
@@ -107,6 +117,9 @@ func (resp *TextResponse) WriteBody(writer io.Writer) {
 	writer.Write(safe.StringToBuffer(resp.Text))
 }
 
+func (resp *TextResponse) Error() string {
+	return fmt.Sprintf("text response<%d>: %s", resp.statusCode.Code, resp.Text)
+}
 
 type StreamResponse struct {
 	OncePrepareResponse
@@ -130,5 +143,9 @@ func (resp *StreamResponse) Prepare() {
 
 func (resp *StreamResponse) WriteBody(writer io.Writer) {
 	io.Copy(writer, resp.Stream)
+}
+
+func (resp *StreamResponse) Error() string {
+	return fmt.Sprintf("stream response<%d> %s", resp.statusCode.Code, strconv.FormatUint(resp.Size, 10))
 }
 
