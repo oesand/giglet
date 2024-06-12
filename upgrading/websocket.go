@@ -8,7 +8,11 @@ import (
 	"strings"
 )
 
-func UpgradeWebSocket(req giglet.Request, enableCompression bool, handler WebSocketHandler) giglet.Response {
+var bufioReaderPool = safe.BufioReaderPool{
+	MaxSize: 128,
+}
+
+func UpgradeWebSocket(req giglet.Request, conf *WebSocketConf, handler WebSocketHandler) giglet.Response {
 	if req.Method() != specs.HttpMethodGet {
 		return (&giglet.TextResponse{
 			Text: "websocket: upgrading required request method - GET",
@@ -33,15 +37,23 @@ func UpgradeWebSocket(req giglet.Request, enableCompression bool, handler WebSoc
 			Text: "websocket: not a websocket handshake: `Sec-WebSocket-Key' header is missing or blank",
 		}).SetStatusCode(specs.StatusCodeBadRequest)
 	}
+	if conf == nil {
+		conf = &WebSocketConf{}
+	}
 	req.Hijack(func(conn net.Conn) {
+		reader := bufioReaderPool.Get(conn)
+		defer bufioReaderPool.Put(reader)
+
 		handler(&WebSocketConn{
 			request: req,
 			conn: conn,
+			reader: *reader,
+			conf: *conf,
 		})
 	})
 	return &WebSocketUpgradeResponse{
 		ChallengeKey: challengeKey,
-		EnableCompression: enableCompression,
+		EnableCompression: conf.EnableCompression,
 	}
 }
 

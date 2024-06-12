@@ -11,8 +11,9 @@ type StatusCode struct {
 	Detail []byte
 }
 
-func (status *StatusCode) ShouldHaveBody() bool {
-	return !(100 <= status.Code && status.Code <= 199 || status.Code == 204 || status.Code == 304)
+func (status *StatusCode) HaveBody() bool {
+	return !(100 <= status.Code && status.Code <= 199 || status.Code == 204 || 
+		(300 <= status.Code && status.Code < 400))
 }
 
 func (status *StatusCode) IsValid() bool {

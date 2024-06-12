@@ -31,6 +31,7 @@ func NewReadOnlyHeader(headers map[string]string) *ReadOnlyHeader {
 			header.contentType = ContentType(contentType)
 			header.mediaParams = mediaParams
 		}
+		delete(headers, "Content-Type")
 	}
 	return header
 }

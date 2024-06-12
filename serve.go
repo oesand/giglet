@@ -1,15 +1,14 @@
 package giglet
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/tls"
 	"errors"
+	"giglet/safe"
 	"giglet/specs"
 	"io"
 	"net"
 	"runtime"
-	"sync"
 	"time"
 )
 
@@ -44,7 +43,7 @@ func (server *Server) Serve(listener net.Listener) error {
 	}
 }
 
-var bufioReaderPool sync.Pool
+var bufioReaderPool safe.BufioReaderPool
 
 func (server *Server) work(conn net.Conn) {
 	if server.Handler == nil || server.isShuttingdown.Load() {
@@ -83,8 +82,15 @@ func (server *Server) work(conn net.Conn) {
 		}
 	}
 
+	if server.isShuttingdown.Load() {
+		conn.Close()
+		return
+	}
+
+	reader := bufioReaderPool.Get(conn)
+
 	defer func() {
-		if err := recover(); err != nil && err != ErrorAbortHandler {
+		if err := recover(); err != nil && err != ErrorAbortHandler { // [FIXME]: ErrorAbortHandler
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
@@ -93,20 +99,10 @@ func (server *Server) work(conn net.Conn) {
 				server.logger().Printf("http: panic serving %v: %v\n%s", conn.RemoteAddr(), err, buf)
 			}
 		}
-	}()
 
-	if server.isShuttingdown.Load() {
 		conn.Close()
-		return
-	}
-
-	var reader *bufio.Reader
-	if rd := bufioReaderPool.Get(); rd != nil {
-		reader = rd.(*bufio.Reader)
-		reader.Reset(conn)
-	} else {
-		reader = bufio.NewReader(conn)
-	}
+		bufioReaderPool.Put(reader)
+	}()
 
 	for {
 		if server.ContentMaxSizeBytes > 0 {
@@ -204,14 +200,10 @@ func (server *Server) work(conn net.Conn) {
 		} else if req.hijacker != nil {
 			req.hijacker(conn)
 			break
-		} else if req.Method() != specs.HttpMethodHead && writable == nil && code.ShouldHaveBody() {
+		} else if req.Method() != specs.HttpMethodHead && writable == nil && code.HaveBody() {
 			break
 		}
 	}
-	
-	conn.Close()
-	reader.Reset(nil)
-	bufioReaderPool.Put(reader)
 }
 
 func WriteResponseHeadTo(writer io.Writer, is11 bool, code specs.StatusCode, header *specs.Header) error {
