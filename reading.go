@@ -70,8 +70,8 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	//	Host: doesnt matter
 	// the same. In the second case, any Host line is ignored.
 	if host, has := header["Host"]; 
-		has && len(host) > 0 && httpguts.ValidHostHeader(host) {
-		req.url.Host = host
+		has && len(host) > 0 && !httpguts.ValidHostHeader(host) {
+		header["Host"] = req.url.Host
 	}
 
 	// RFC 7234, section 5.4: Should treat

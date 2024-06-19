@@ -17,6 +17,10 @@ type Server struct {
 
 	Logger *log.Logger
 
+	// Handler for new incoming connections to provide filtering by address
+	// Returns <bool> true - accept, false - close 
+	AddrFiltering AddrFilteringHandler
+
 	Debug bool
 	
 	// Server name for sending in response headers.

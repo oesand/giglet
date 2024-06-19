@@ -13,12 +13,13 @@ import (
 type RequestHandler func(request Request) Response
 type HijackHandler func(conn net.Conn)
 type NextProtoHandler func(conn *tls.Conn)
+type AddrFilteringHandler func(addr net.Addr) bool
 type EventHandler func()
 
 var (
 	DefaultServerName = "giglet"
 	HeadlineMaxLength int64 = 2048
-	DefaultContentMaxSizeBytes int64 = 5 << 20 // 5MB
+	DefaultContentMaxSizeBytes int64 = 5 << 20 // 5 MB
 
 	ErrorTooLarge = errors.New("too large")
 	ErrorServerClosed = errors.New("http: server closed")

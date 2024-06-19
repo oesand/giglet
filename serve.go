@@ -36,6 +36,9 @@ func (server *Server) Serve(listener net.Listener) error {
 				continue
 			}
 			return err
+		} else if server.AddrFiltering != nil && !server.AddrFiltering(conn.RemoteAddr()) {
+			conn.Close()
+			continue
 		}
 		go server.handle(conn)
 	}
