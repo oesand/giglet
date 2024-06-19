@@ -41,7 +41,6 @@ type Server struct {
 	// If zero, DefaultContentMaxSizeBytes is used.
 	ContentMaxSizeBytes int64
 
-	onceV2 atomic.Bool
 	nextProtos map[string]NextProtoHandler
 	isShuttingdown atomic.Bool
 	listenerTrack  sync.WaitGroup
@@ -67,6 +66,14 @@ func (server *Server) applyWriteTimeout(conn net.Conn) {
 	if server.WriteTimeout > 0 {
 		conn.SetWriteDeadline(time.Now().Add(server.WriteTimeout))
 	}
+}
+
+func (server *Server) HasNextProto(proto string) bool {
+	server.mutex.Lock()
+	_, has := server.nextProtos[proto]
+	server.mutex.Unlock()
+
+	return has
 }
 
 func (server *Server) NextProto(proto string, handler NextProtoHandler) {
@@ -136,12 +143,6 @@ func (srv *Server) ServeTLS(lst net.Listener, certFile, keyFile string) error {
 }
 
 func (server *Server) ServeTLSRaw(lst net.Listener, cert tls.Certificate) error {
-	// Setup HTTP/2 before srv.Serve, to initialize srv.TLSConfig
-	// before we clone it and create the TLS Listener.
-	if err := server.ensureConfigureHTTP2(true); err != nil {
-		return err
-	}
-
 	var config *tls.Config
 	if server.TLSConfig != nil {
 		config = server.TLSConfig.Clone()

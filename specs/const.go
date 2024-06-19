@@ -1,6 +1,8 @@
 package specs
 
 import (
+	"errors"
+
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -8,6 +10,8 @@ import (
 const TimeFormat = "Mon, 02 Jan 2006 15:04:05 GMT"
 
 var (
+	errorInvalidUrlFormat = errors.New("url: invalid format")
+
 	cookieDelimiter    		= []byte("; ")
 	cookieKeyExpires        = []byte("Expires")
 	cookieKeyDomain         = []byte("Domain")

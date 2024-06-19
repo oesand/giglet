@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"giglet/safe"
 	"giglet/specs"
+	"io"
 	"strconv"
 
 	"golang.org/x/net/http/httpguts"
@@ -55,7 +56,7 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	}
 	req.header = specs.NewReadOnlyHeader(header)
 
-	if req.ProtoAtLeast(1, 1) { // [FIXME]: Add chunked transfer
+	if req.ProtoAtLeast(1, 1) { // [FEATURE]: Add chunked transfer
 		if raw := req.header.Get("Transfer-Encoding"); len(raw) > 0 { // !strings.EqualFold(raw, "chunked")
 			return nil, ErrorUnsupportedEncoding
 		}
@@ -77,8 +78,13 @@ func readRequest(reader *bufio.Reader) (*HttpRequest, error) {
 	if pragma, has := header["Pragma"]; has && pragma == "no-cache" {
 		header["Cache-Control"] = "no-cache"
 	}
-	
-	req.stream = reader
+
+	if req.method.IsPostable() {
+		contentLength := req.Header().ContentLength()
+		if contentLength > 0 {
+			req.body = io.LimitReader(reader, contentLength)
+		}
+	}
 	return req, nil
 }
 

@@ -2,7 +2,6 @@ package giglet
 
 import (
 	"giglet/specs"
-	"io"
 	"mime/multipart"
 	"net"
 )
@@ -12,13 +11,16 @@ type Request interface {
 	SetExtra(key string, value any)
 	
 	ProtoAtLeast(major, minor uint16) bool
+	ProtoNoHigher(major, minor uint16) bool
 	RemoteAddr() net.Addr
 	Hijack(handler HijackHandler)
 	
 	Method() specs.HttpMethod
 	Url() *specs.Url
 	Header() *specs.ReadOnlyHeader
-	Stream() io.Reader
+
+	Read([]byte) (int, error)
+	PostBody() ([]byte, error)
 	PostForm() (specs.Query, error)
 	MultipartForm() (*multipart.Form, error)
 }

@@ -2,9 +2,14 @@ package upgrading
 
 import (
 	"errors"
+	"giglet/safe"
 )
 
 type WebSocketHandler func(conn *WebSocketConn)
+
+var bufioReaderPool = safe.BufioReaderPool{
+	MaxSize: 128,
+}
 
 var (
 	ErrorWebsocketInvalidFrameType  = errors.New("websocket: invalid frame type")

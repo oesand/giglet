@@ -12,6 +12,7 @@ import (
 type HttpRequest struct {
 	_ safe.NoCopy
 
+	server *Server
 	conn net.Conn
 	hijacker HijackHandler
 	extras map[string]any
@@ -21,8 +22,9 @@ type HttpRequest struct {
 	url *specs.Url
 	header *specs.ReadOnlyHeader
 
-	stream io.Reader
-	bodyParsed bool
+	body io.Reader
+	bodyReaded bool
+	cachedBody []byte
 	cachedMultipart *multipart.Form
 	cachedForm specs.Query
 }
@@ -32,8 +34,40 @@ func (req *HttpRequest) ProtoAtLeast(major, minor uint16) bool {
 		req.protoMajor == major && req.protoMinor >= minor
 }
 
-func (req *HttpRequest) Stream() io.Reader {
-	return req.stream
+func (req *HttpRequest) ProtoNoHigher(major, minor uint16) bool {
+	return req.protoMajor < major ||
+		req.protoMajor == major && req.protoMinor <= minor
+}
+
+func (req *HttpRequest) Read(buf []byte) (n int, err error) {
+	if req.body == nil || req.bodyReaded {
+		return 0, io.EOF
+	}
+	if req.server != nil {
+		req.server.applyReadTimeout(req.conn)
+		defer req.conn.SetDeadline(zeroTime)
+	}
+	
+	n, err = req.body.Read(buf)
+	if err == io.EOF {
+		req.bodyReaded = true
+	}
+	return n, err
+}
+
+func (req *HttpRequest) PostBody() (buf []byte, err error) {
+	if req.body == nil || (req.bodyReaded && req.cachedBody == nil) {
+		return nil, io.EOF
+	} else if req.cachedBody != nil {
+		return req.cachedBody, nil
+	}
+
+	buf, err = io.ReadAll(req)
+	if err == nil {
+		req.cachedBody = buf
+	}
+	
+	return
 }
 
 func (req *HttpRequest) RemoteAddr() net.Addr {
@@ -71,8 +105,8 @@ func (req *HttpRequest) SetExtra(key string, value any) {
 }
 
 func (req *HttpRequest) PostForm() (specs.Query, error) {
-	if !req.method.IsPostable() {
-		return nil, errors.New("this request method does not imply receiving a body")
+	if req.body == nil {
+		return nil, io.EOF
 	} else if req.cachedForm != nil {
 		return req.cachedForm, nil
 	} else if req.Header().ContentType() != specs.ContentTypeMultipart {
@@ -83,12 +117,12 @@ func (req *HttpRequest) PostForm() (specs.Query, error) {
 		return form.Value, nil
 	} else if req.Header().ContentType() != specs.ContentTypeForm {
 		return nil, errors.New("this Content-Type is not a urlencoded-form")
-	} else if req.bodyParsed {
+	} else if req.bodyReaded {
 		return nil, nil
 	}
-	req.bodyParsed = true
+	req.bodyReaded = true
 
-	buf, err := io.ReadAll(req.stream)
+	buf, err := io.ReadAll(req)
 	if err != nil {
 		return nil, err
 	}
@@ -100,23 +134,23 @@ func (req *HttpRequest) PostForm() (specs.Query, error) {
 }
 
 func (req *HttpRequest) MultipartForm() (*multipart.Form, error) {
-	if !req.method.IsPostable() {
-		return nil, errors.New("this request method does not imply receiving a body")
+	if req.body == nil {
+		return nil, io.EOF
 	} else if req.Header().ContentType() != specs.ContentTypeMultipart {
 		return nil, errors.New("this Content-Type is not a multipart-form")
 	} else if req.cachedMultipart != nil {
 		return req.cachedMultipart, nil
-	} else if req.bodyParsed {
+	} else if req.bodyReaded {
 		return nil, nil
 	}
-	req.bodyParsed = true
+	req.bodyReaded = true
 
 	boundary := req.header.GetMediaParams("boundary")
 	if len(boundary) == 0 {
 		return nil, errors.New("this request Content-Type does not contains boundary")
 	}
 
-	reader := multipart.NewReader(req.stream, boundary)
+	reader := multipart.NewReader(req, boundary)
 	form, err := reader.ReadForm(0)
 	if err != nil {
 		return nil, err

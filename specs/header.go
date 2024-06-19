@@ -2,6 +2,7 @@ package specs
 
 import (
 	"bytes"
+	"errors"
 	"giglet/safe"
 	"io"
 )
@@ -82,7 +83,11 @@ func (header *Header) SetCookieValue(name, value string) {
 	})
 }
 
-func (header *Header) WriteTo(writer io.Writer) (int64, error) {
+func (header *Header) WriteAsResponseHeaderTo(writer io.Writer) (int64, error) {
+	if writer == nil { 
+		return -1, errors.New("response header: invalid writer")
+	}
+
 	var buf bytes.Buffer
 	
 	if header.headers != nil {
@@ -100,5 +105,6 @@ func (header *Header) WriteTo(writer io.Writer) (int64, error) {
 			buf.Write(directCrlf)
 		}
 	}
+
 	return buf.WriteTo(writer)
 }

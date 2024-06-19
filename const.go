@@ -28,7 +28,6 @@ var (
 
 	zeroTime time.Time
 	httpV1NextProtoTLS 	= "http/1.1"
-	httpV2NextProtoTLS 	= "h2"
 
 	httpVersionPrefix 	= []byte("HTTP/")
 	httpV10 			= []byte("HTTP/1.0")

@@ -8,10 +8,6 @@ import (
 	"strings"
 )
 
-var bufioReaderPool = safe.BufioReaderPool{
-	MaxSize: 128,
-}
-
 func UpgradeWebSocket(req giglet.Request, conf *WebSocketConf, handler WebSocketHandler) giglet.Response {
 	if req.Method() != specs.HttpMethodGet {
 		return (&giglet.TextResponse{

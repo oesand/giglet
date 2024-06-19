@@ -28,11 +28,9 @@ func readBufferLine(reader *bufio.Reader, limit int64) ([]byte, error) {
 func isCommonNetReadError(err error) bool {
 	if err == io.EOF {
 		return true
-	}
-	if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
+	} else if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
 		return true
-	}
-	if oe, ok := err.(*net.OpError); ok && oe.Op == "read" {
+	} else if operr, ok := err.(*net.OpError); ok && operr.Op == "read" {
 		return true
 	}
 	return false

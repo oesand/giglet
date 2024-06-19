@@ -1,30 +1,26 @@
-package giglet
+package httpv2
 
-import (
-	"slices"
-)
+// func (server *Server) ensureConfigureHTTP2(isTLS bool) error {
+// 	if server.onceV2.Load() {
+// 		return nil
+// 	} else if !isTLS && (server.TLSConfig != nil &&
+// 		!slices.Contains(server.TLSConfig.NextProtos, httpV2NextProtoTLS)) {
 
-func (server *Server) ensureConfigureHTTP2(isTLS bool) error {
-	if server.onceV2.Load() {
-		return nil
-	} else if !isTLS && (server.TLSConfig != nil && 
-		!slices.Contains(server.TLSConfig.NextProtos, httpV2NextProtoTLS)) {
+// 		server.onceV2.Store(true)
+// 		return nil
+// 	}
+// 	server.onceV2.Store(true)
 
-		server.onceV2.Store(true)
-		return nil
-	}
-	server.onceV2.Store(true)
-
-	/*
+/*
 
 	conf := &http2Server{
-		NewWriteScheduler: func() http2WriteScheduler { 
+		NewWriteScheduler: func() http2WriteScheduler {
 			return http2NewPriorityWriteScheduler(nil)
 		},
 		state: &http2serverInternalState{activeConns: make(map[*http2serverConn]struct{})},
 	}
 
-	
+
 	if server.TLSConfig == nil {
 		server.TLSConfig = new(tls.Config)
 	} else if server.TLSConfig.CipherSuites != nil && server.TLSConfig.MinVersion < tls.VersionTLS13 {
@@ -68,9 +64,9 @@ func (server *Server) ensureConfigureHTTP2(isTLS bool) error {
 		// 	BaseConfig: hs,
 		// })
 	});
-	*/
-	return nil
-}
+*/
+// 	return nil
+// }
 
 /*
 

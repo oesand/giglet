@@ -27,9 +27,9 @@ func (status *StatusCode) AppendBytes(buffer []byte) []byte {
 	return buffer
 }
 
-func (status *StatusCode) WriteAsHeadlineTo(writer io.Writer, is11 bool) error {
+func (status *StatusCode) WriteAsHeadlineTo(writer io.Writer, is11 bool) (int64, error) {
 	if writer == nil { 
-		return errors.New("invalid writer")
+		return -1, errors.New("status code: invalid writer")
 	}
 	var line []byte
 	if is11 {
@@ -42,8 +42,8 @@ func (status *StatusCode) WriteAsHeadlineTo(writer io.Writer, is11 bool) error {
 	line = status.AppendBytes(line)
 	line = append(line, directCrlf...)
 
-	_, err := writer.Write(line)
-	return err
+	size, err := writer.Write(line)
+	return int64(size), err
 }
 
 var (

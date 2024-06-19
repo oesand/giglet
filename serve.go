@@ -18,8 +18,6 @@ func (server *Server) Serve(listener net.Listener) error {
 		return errors.New("empty listener")
 	} else if server.isShuttingdown.Load() {
 		return ErrorServerClosed
-	} else if err := server.ensureConfigureHTTP2(false); err != nil {
-		return err
 	}
 
 	server.listenerTrack.Add(1)
@@ -39,13 +37,13 @@ func (server *Server) Serve(listener net.Listener) error {
 			}
 			return err
 		}
-		go server.work(conn)
+		go server.handle(conn)
 	}
 }
 
 var bufioReaderPool safe.BufioReaderPool
 
-func (server *Server) work(conn net.Conn) {
+func (server *Server) handle(conn net.Conn) {
 	if server.Handler == nil || server.isShuttingdown.Load() {
 		conn.Close()
 		return
@@ -90,7 +88,7 @@ func (server *Server) work(conn net.Conn) {
 	reader := bufioReaderPool.Get(conn)
 
 	defer func() {
-		if err := recover(); err != nil && err != ErrorAbortHandler { // [FIXME]: ErrorAbortHandler
+		if err := recover(); err != nil && err != ErrorAbortHandler { 
 			const size = 64 << 10
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
@@ -114,6 +112,9 @@ func (server *Server) work(conn net.Conn) {
 		server.applyReadTimeout(conn)
 		req, err := readRequest(reader)
 		conn.SetReadDeadline(zeroTime)
+
+		req.server = server
+		req.conn = conn
 		
 		if err != nil {
 			if server.Debug {
@@ -138,7 +139,7 @@ func (server *Server) work(conn net.Conn) {
 			}
 			break
 		}
-
+		
 		resp := handler(req)
 		var header *specs.Header
 		var code specs.StatusCode
@@ -172,7 +173,7 @@ func (server *Server) work(conn net.Conn) {
 			}
 		}
 
-		err = WriteResponseHeadTo(conn, req.ProtoAtLeast(1, 1), code, header)
+		_, err = WriteResponseHeadTo(conn, req.ProtoAtLeast(1, 1), code, header)
 		if err != nil {
 			if server.Debug {
 				server.logger().Printf("http: send response head to %s error: %v", conn.RemoteAddr(), err)
@@ -206,24 +207,23 @@ func (server *Server) work(conn net.Conn) {
 	}
 }
 
-func WriteResponseHeadTo(writer io.Writer, is11 bool, code specs.StatusCode, header *specs.Header) error {
+func WriteResponseHeadTo(writer io.Writer, is11 bool, code specs.StatusCode, header *specs.Header) (int64, error) {
 	var headbuf bytes.Buffer
 	
 	if !code.IsValid() {
 		code = specs.StatusCodeOK
 	}
 
-	err := code.WriteAsHeadlineTo(&headbuf, is11)
+	_, err := code.WriteAsHeadlineTo(&headbuf, is11)
 	if err != nil {
-		return err
+		return -1, err
 	}
 	if header != nil {
-		_, err = header.WriteTo(&headbuf)
+		_, err = header.WriteAsResponseHeaderTo(&headbuf)
 		if err != nil {
-			return err
+			return -1, err
 		}
 	}
 	headbuf.Write(directCrlf)
-	_, err = headbuf.WriteTo(writer)
-	return err
+	return headbuf.WriteTo(writer)
 }

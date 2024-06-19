@@ -3,6 +3,7 @@ package specs
 import (
 	"giglet/safe"
 	"mime"
+	"strconv"
 	"strings"
 )
 
@@ -33,6 +34,15 @@ func NewReadOnlyHeader(headers map[string]string) *ReadOnlyHeader {
 		}
 		delete(headers, "Content-Type")
 	}
+	if len, has := headers["Content-Length"]; has {
+		length, err := strconv.ParseInt(len, 10, 64);
+		if err != nil {
+			header.contentLength = -1
+		} else {
+			header.contentLength = length
+		}
+		delete(headers, "Content-Length")
+	}
 	return header
 }
 
@@ -40,6 +50,7 @@ type ReadOnlyHeader struct {
 	_ safe.NoCopy
 
 	contentType 		ContentType
+	contentLength 		int64
 	mediaParams			map[string]string
 
 	headers       		map[string]string
@@ -59,6 +70,10 @@ func (header *ReadOnlyHeader) Get(name string) string {
 
 func (header *ReadOnlyHeader) ContentType() ContentType {
 	return header.contentType
+}
+
+func (header *ReadOnlyHeader) ContentLength() int64 {
+	return header.contentLength
 }
 
 func (header *ReadOnlyHeader) GetMediaParams(name string) string {
