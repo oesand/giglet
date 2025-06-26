@@ -2,15 +2,18 @@ package giglet
 
 import (
 	"context"
+	"crypto/tls"
+	"github.com/oesand/giglet/internal/server"
 	"github.com/oesand/giglet/specs"
 	"io"
 	"net"
 )
 
-type Request interface {
-	Context() context.Context
-	WithContext(context context.Context)
+type Handler func(ctx context.Context, request Request) Response
+type HijackHandler = server.HijackHandler
+type NextProtoHandler func(conn *tls.Conn)
 
+type Request interface {
 	ProtoVersion() (major, minor uint16)
 	RemoteAddr() net.Addr
 	Hijack(handler HijackHandler)
@@ -42,4 +45,11 @@ type ClientResponse interface {
 
 type BodyWriter interface {
 	WriteBody(io.Writer) error
+}
+
+type HijackRequest interface {
+	ClientRequest
+
+	Hijack(net.Conn)
+	Conn() net.Conn
 }

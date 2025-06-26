@@ -7,20 +7,19 @@ import (
 	"time"
 )
 
-type Conn interface {
-	Context() context.Context
-	WithContext(context context.Context)
+type Handler func(ctx context.Context, conn Conn)
 
+type Conn interface {
 	RemoteAddr() net.Addr
 	Url() *specs.Url
-	Header() *specs.Header
 
 	Alive() bool
 	SetDeadline(time.Time) error
 	SetReadDeadline(time.Time) error
 	SetWriteDeadline(time.Time) error
 
-	Read() (WebSocketFrame, []byte, error)
-	Write(WebSocketFrame, []byte) error
-	Close(WebSocketClose) error
+	Read([]byte) (int, error)
+	Write([]byte) error
+	WriteClose(WsCloseCode) error
+	Close() error
 }
