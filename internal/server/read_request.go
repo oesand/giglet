@@ -5,17 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/oesand/giglet/internal"
 	"github.com/oesand/giglet/internal/catch"
 	"github.com/oesand/giglet/internal/parsing"
-	"github.com/oesand/giglet/internal/utils/stream"
+	"github.com/oesand/giglet/internal/stream"
 	"github.com/oesand/giglet/specs"
 	"golang.org/x/net/http/httpguts"
-	"net"
 	"strings"
 )
 
 func ReadRequest(
-	ctx context.Context, conn net.Conn, reader *bufio.Reader,
+	ctx context.Context, reader *bufio.Reader,
 	lineLimit int64, totalLimit int64,
 ) (*HttpRequest, error) {
 	select {
@@ -65,7 +65,6 @@ func ReadRequest(
 	}
 
 	if err = catch.CatchContextCancel(ctx); err != nil {
-		conn.Close()
 		return nil, err
 	}
 
@@ -80,8 +79,10 @@ func ReadRequest(
 		return nil, err
 	}
 
-	if protoMajor > 1 || (protoMajor == 1 && protoMinor >= 0) { // [FEATURE]: Add chunked transfer
-		if raw, has := header.TryGet("Transfer-Encoding"); has && len(raw) > 0 && !strings.EqualFold(raw, "chunked") {
+	var chunkedEncoding bool
+	if protoMajor > 1 || (protoMajor == 1 && protoMinor >= 0) {
+		chunkedEncoding, err = internal.IsChunkedEncoding(header)
+		if err != nil {
 			return nil, &ErrorResponse{
 				Code: specs.StatusCodeNotImplemented,
 				Text: "http: unsupported transfer encoding",
@@ -105,20 +106,13 @@ func ReadRequest(
 		header.Set("Cache-Control", "no-cache")
 	}
 
-	var selectedEncoding specs.ContentEncoding
-
-	if encoding, has := header.TryGet("Accept-Encoding"); has {
-		variants := strings.Split(encoding, ",")
+	var selectedEncoding string
+	if acceptEncoding, has := header.TryGet("Accept-Encoding"); has {
+		variants := strings.Split(acceptEncoding, ", ")
 		for _, variant := range variants {
-			if strings.Contains(strings.ToLower(variant), "gzip") {
-				selectedEncoding = specs.GzipContentEncoding
+			if internal.IsKnownContentEncoding(variant) {
+				selectedEncoding = variant
 				break
-			}
-		}
-		if selectedEncoding == specs.UnknownContentEncoding {
-			return nil, &ErrorResponse{
-				Code: specs.StatusCodeNotImplemented,
-				Text: "http: has not supported encoding from accept-encoding, supported: gzip",
 			}
 		}
 	}
@@ -128,8 +122,8 @@ func ReadRequest(
 		protoMajor: protoMajor,
 		protoMinor: protoMinor,
 		url:        url,
-		context:    ctx,
 		header:     header,
+		Chunked:    chunkedEncoding,
 
 		SelectedEncoding: selectedEncoding,
 	}
