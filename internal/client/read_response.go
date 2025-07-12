@@ -5,12 +5,12 @@ import (
 	"context"
 	"github.com/oesand/giglet/internal/catch"
 	"github.com/oesand/giglet/internal/parsing"
-	"github.com/oesand/giglet/internal/utils/stream"
+	"github.com/oesand/giglet/internal/stream"
 	"github.com/oesand/giglet/specs"
 )
 
 func ReadResponse(ctx context.Context, reader *bufio.Reader, lineLimit int64, totalLimit int64) (*HttpClientResponse, error) {
-	line, err := stream.ReadBufferLine(reader, 128)
+	line, err := stream.ReadBufferLine(reader, lineLimit)
 	if err != nil {
 		return nil, err
 	}

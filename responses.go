@@ -1,18 +1,13 @@
 package giglet
 
 import (
-	"github.com/oesand/giglet/internal/utils"
+	"github.com/oesand/giglet/internal"
 	"github.com/oesand/giglet/specs"
 	"io"
-	"strconv"
 )
 
-func EmptyResponse(contentType specs.ContentType, configure ...func(response Response)) Response {
-	resp := &HeaderResponse{}
-
-	if contentType != specs.ContentTypeUndefined {
-		resp.Header().Set("Content-Type", string(contentType))
-	}
+func NewEmptyResponse(statusCode specs.StatusCode, configure ...func(Response)) Response {
+	resp := newEmptyResponse(statusCode)
 
 	for _, conf := range configure {
 		conf(resp)
@@ -21,22 +16,30 @@ func EmptyResponse(contentType specs.ContentType, configure ...func(response Res
 	return resp
 }
 
-func RedirectResponse(url string) Response {
-	resp := &HeaderResponse{}
-	resp.SetStatusCode(specs.StatusCodeTemporaryRedirect)
+func newEmptyResponse(statusCode specs.StatusCode) *HeaderResponse {
+	if statusCode == specs.StatusCodeUndefined {
+		statusCode = specs.StatusCodeOK
+	}
+	return &HeaderResponse{
+		statusCode: statusCode,
+		header:     specs.NewHeader(),
+	}
+}
+
+func NewRedirectResponse(url string, configure ...func(Response)) Response {
+	resp := NewEmptyResponse(specs.StatusCodeTemporaryRedirect, configure...)
 	resp.Header().Set("Location", url)
 	return resp
 }
 
-func PermanentRedirectResponse(url string) Response {
-	resp := &HeaderResponse{}
-	resp.SetStatusCode(specs.StatusCodePermanentRedirect)
+func NewPermanentRedirectResponse(url string, configure ...func(Response)) Response {
+	resp := NewEmptyResponse(specs.StatusCodePermanentRedirect, configure...)
 	resp.Header().Set("Location", url)
 	return resp
 }
 
 type HeaderResponse struct {
-	_ utils.NoCopy
+	_ internal.NoCopy
 
 	statusCode specs.StatusCode
 	header     *specs.Header
@@ -49,25 +52,31 @@ func (resp *HeaderResponse) StatusCode() specs.StatusCode {
 	return resp.statusCode
 }
 
-func (resp *HeaderResponse) SetStatusCode(code specs.StatusCode) {
-	resp.statusCode = code
-}
-
 func (resp *HeaderResponse) Header() *specs.Header {
 	if resp.header == nil {
-		resp.header = &specs.Header{}
+		resp.header = specs.NewHeader()
 	}
 	return resp.header
 }
 
-func BufferResponse(buffer []byte, contentType specs.ContentType, configure ...func(response Response)) Response {
-	resp := &bufferResponse{buffer: buffer}
+func NewTextResponse(text string, contentType string, statusCode specs.StatusCode, configure ...func(Response)) Response {
+	if contentType == specs.ContentTypeUndefined {
+		contentType = specs.ContentTypePlain
+	}
+	return NewBufferResponse([]byte(text), contentType, statusCode, configure...)
+}
+
+func NewBufferResponse(buffer []byte, contentType string, statusCode specs.StatusCode, configure ...func(Response)) Response {
+	resp := &bufferResponse{
+		HeaderResponse: *newEmptyResponse(statusCode),
+		buffer:         buffer,
+		contentLength:  int64(len(buffer)),
+	}
 
 	if contentType == specs.ContentTypeUndefined {
 		contentType = specs.ContentTypeRaw
 	}
-	resp.Header().Set("Content-Length", strconv.Itoa(len(buffer)))
-	resp.Header().Set("Content-Type", string(contentType))
+	resp.Header().Set("Content-Type", contentType)
 
 	for _, conf := range configure {
 		conf(&resp.HeaderResponse)
@@ -76,16 +85,10 @@ func BufferResponse(buffer []byte, contentType specs.ContentType, configure ...f
 	return resp
 }
 
-func TextResponse(text string, contentType specs.ContentType, configure ...func(response Response)) Response {
-	if contentType == specs.ContentTypeUndefined {
-		contentType = specs.ContentTypePlain
-	}
-	return BufferResponse(utils.StringToBuffer(text), contentType, configure...)
-}
-
 type bufferResponse struct {
 	HeaderResponse
-	buffer []byte
+	buffer        []byte
+	contentLength int64
 }
 
 func (resp *bufferResponse) WriteBody(writer io.Writer) error {
@@ -93,15 +96,28 @@ func (resp *bufferResponse) WriteBody(writer io.Writer) error {
 	return err
 }
 
-func StreamResponse(stream io.Reader, size uint64, contentType specs.ContentType, configure ...func(response Response)) Response {
-	resp := &streamResponse{stream: stream}
+func (resp *bufferResponse) ContentLength() int64 {
+	return resp.contentLength
+}
+
+func NewStreamResponse(stream io.Reader, contentType string, contentLength int64, statusCode specs.StatusCode, configure ...func(Response)) Response {
+	if stream == nil {
+		panic("giglet/response: passed nil stream")
+	}
+	if contentLength < 0 {
+		panic("giglet/response: invalid content length")
+	}
+
+	resp := &streamResponse{
+		HeaderResponse: *newEmptyResponse(statusCode),
+		stream:         stream,
+		contentLength:  contentLength,
+	}
+
 	if contentType == specs.ContentTypeUndefined {
 		contentType = specs.ContentTypeRaw
 	}
-	if size > 0 {
-		resp.Header().Set("Content-Length", strconv.FormatUint(size, 10))
-	}
-	resp.Header().Set("Content-Type", string(contentType))
+	resp.Header().Set("Content-Type", contentType)
 
 	for _, conf := range configure {
 		conf(&resp.HeaderResponse)
@@ -112,10 +128,15 @@ func StreamResponse(stream io.Reader, size uint64, contentType specs.ContentType
 
 type streamResponse struct {
 	HeaderResponse
-	stream io.Reader
+	stream        io.Reader
+	contentLength int64
 }
 
 func (resp *streamResponse) WriteBody(writer io.Writer) error {
 	_, err := io.Copy(writer, resp.stream)
 	return err
+}
+
+func (resp *streamResponse) ContentLength() int64 {
+	return resp.contentLength
 }
