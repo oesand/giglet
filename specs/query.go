@@ -1,9 +1,8 @@
 package specs
 
 import (
-	"github.com/oesand/giglet/internal/utils"
-	"github.com/oesand/giglet/internal/utils/plain"
-	"net/url"
+	"github.com/oesand/giglet/internal"
+	"github.com/oesand/giglet/internal/plain"
 	"strings"
 )
 
@@ -12,7 +11,7 @@ type Query map[string]string
 func ParseQuery(query string) Query {
 	q := make(Query)
 	if query == "" {
-		return q
+		return nil
 	}
 
 	pairs := strings.Split(query, "&")
@@ -22,7 +21,7 @@ func ParseQuery(query string) Query {
 			continue
 		}
 
-		decodedKey, err := url.QueryUnescape(key)
+		decodedKey, err := plain.UnEscapeUrl(key, plain.EscapingQueryComponent)
 		if err != nil {
 			continue
 		}
@@ -30,7 +29,7 @@ func ParseQuery(query string) Query {
 			continue
 		}
 
-		decodedValue, err := url.QueryUnescape(value)
+		decodedValue, err := plain.UnEscapeUrl(value, plain.EscapingQueryComponent)
 		if err != nil {
 			continue
 		}
@@ -41,12 +40,16 @@ func ParseQuery(query string) Query {
 	return q
 }
 
+func (q Query) Any() bool {
+	return q != nil && len(q) > 0
+}
+
 func (q Query) String() string {
 	if q == nil || len(q) == 0 {
 		return ""
 	}
 	var buf strings.Builder
-	for k, v := range utils.IterMapSorted(q) {
+	for k, v := range internal.IterMapSorted(q) {
 		if buf.Len() > 0 {
 			buf.WriteByte('&')
 		}

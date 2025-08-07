@@ -1,12 +1,19 @@
 package specs
 
 import (
-	"github.com/oesand/giglet/internal/utils"
+	"github.com/oesand/giglet/internal"
+	"github.com/oesand/giglet/internal/plain"
 	"golang.org/x/net/publicsuffix"
 	"iter"
 	"sync"
 	"time"
 )
+
+func NewCookieJar() *CookieJar {
+	return &CookieJar{
+		cookies: make(map[string]map[string]*Cookie),
+	}
+}
 
 type CookieJar struct {
 	mutex sync.RWMutex
@@ -31,6 +38,7 @@ func (jar *CookieJar) GetCookie(host string, name string) *Cookie {
 		return nil
 	}
 
+	name = plain.TitleCase(name)
 	value, has := sub[name]
 	if has {
 		if value.IsExpired(time.Now()) {
@@ -47,17 +55,17 @@ func (jar *CookieJar) Cookies(host string) iter.Seq[Cookie] {
 	jar.mutex.RLock()
 	defer jar.mutex.RUnlock()
 	if jar.cookies == nil || len(jar.cookies) == 0 {
-		return utils.EmptyIterSeq[Cookie]()
+		return internal.EmptyIterSeq[Cookie]()
 	}
 
 	tdl, err := publicsuffix.EffectiveTLDPlusOne(host)
 	if err != nil {
-		return utils.EmptyIterSeq[Cookie]()
+		return internal.EmptyIterSeq[Cookie]()
 	}
 
 	sub, has := jar.cookies[tdl]
 	if !has {
-		return utils.EmptyIterSeq[Cookie]()
+		return internal.EmptyIterSeq[Cookie]()
 	}
 
 	return func(yield func(Cookie) bool) {
@@ -66,7 +74,7 @@ func (jar *CookieJar) Cookies(host string) iter.Seq[Cookie] {
 
 		now := time.Now()
 		var expired []string
-		for subKey, cookie := range utils.IterMapSorted(sub) {
+		for subKey, cookie := range internal.IterMapSorted(sub) {
 			if cookie.IsExpired(now) {
 				expired = append(expired, subKey)
 				continue
@@ -122,6 +130,6 @@ func (jar *CookieJar) SetCookiesIter(host string, cookies iter.Seq[Cookie]) {
 			continue
 		}
 
-		sub[cookie.Name] = &cookie
+		sub[plain.TitleCase(cookie.Name)] = &cookie
 	}
 }
